@@ -5,7 +5,7 @@ import time
 
 from implementation import execute, load_program, render, signal_sum
 
-blank_raster = (("o" * 40 + "\n") * 6)[:-1]
+blank_raster = (("·" * 40 + "\n") * 6)[:-1]
 
 
 def render_states(states):
@@ -17,7 +17,7 @@ def render_states(states):
         if ndx > 0 and ndx % 40 == 0:
             raster += "\n"
         is_lit = col in {value - 1, value, value + 1}
-        raster += "#" if is_lit else "."
+        raster += "@" if is_lit else " "
         yield raster + blank_raster[len(raster) :]
 
 
@@ -46,6 +46,10 @@ def visualize(delay):
     curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLUE)
     curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
 
+    for i, line in enumerate(blank_raster.split("\n")):
+        win.addstr(i + pad, pad, line, curses.color_pair(4))
+    win.refresh()
+    time.sleep(20 * delay)
     for (state, raster) in zip(states, render_states(states)):
         for i, line in enumerate(raster.split("\n")):
             win.addstr(i + pad, pad, line, curses.color_pair(4))
@@ -70,8 +74,8 @@ def visualize(delay):
     for i, line in enumerate(raster.split("\n")):
         win.addstr(i + pad, pad, line, curses.color_pair(4))
     win.refresh()
-    time.sleep(10 * delay)
+    time.sleep(20 * delay)
 
 
 if __name__ == "__main__":
-    curses.wrapper(lambda x: visualize(delay=0.2))
+    curses.wrapper(lambda x: visualize(delay=0.05))
