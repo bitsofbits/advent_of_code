@@ -3,7 +3,7 @@
 import curses
 import time
 
-from implementation import execute, load_program, render, signal_sum
+from implementation import execute, load_program
 
 blank_raster = (("·" * 40 + "\n") * 6)[:-1]
 

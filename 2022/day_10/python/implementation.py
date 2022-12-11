@@ -1,33 +1,3 @@
-import sys
-
-
-class List2D:
-    def __init__(self, data, shape):
-        assert len(shape) == 2
-        assert len(data) == shape[0] * shape[1]
-        self.data = data
-        self.shape = shape
-
-    def __getitem__(self, ndx):
-        i, j = ndx
-        assert 0 <= i < self.shape[0]
-        assert 0 <= j < self.shape[1]
-        return self.data[i * self.shape[1] + j]
-
-    def __setitem__(self, ndx, value):
-        i, j = ndx
-        assert 0 <= i < self.shape[0]
-        assert 0 <= j < self.shape[1]
-        self.data[i * self.shape[1] + j] = value
-
-    def __str__(self):
-        lines = []
-        di, dj = self.shape
-        for i in range(di):
-            lines.append("".join(x for x in self.data[i * dj : (i + 1) * dj]))
-        return "\n".join(lines)
-
-
 def execute(program):
     x = 1
     cycle = 0
