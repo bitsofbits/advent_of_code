@@ -33,7 +33,7 @@ def make_op(text):
 
 
 def make_items(text):
-    return lambda x: [int(v.strip()) for v in x.split(",")]
+    return [int(v.strip()) for v in text.split(",")]
 
 
 class Monkey:
@@ -68,12 +68,11 @@ class Monkey:
         self.relief_factor = relief_factor
         self.inspections = 0
 
-    def take_turn(self):
+    def take_turn(self, modulus):
         targets = {self.true_target: [], self.false_target: []}
         for x in self.items:
             self.inspections += 1
-            x = self.operation(x)
-            x //= self.relief_factor
+            x = (self.operation(x) // self.relief_factor) % modulus
             if x % self.test_value == 0:
                 targets[self.true_target].append(x)
             else:
@@ -83,23 +82,13 @@ class Monkey:
 
     @staticmethod
     def play_round(monkeys):
-        modulo = 1
+        modulus = 1
         for m in monkeys.values():
-            modulo *= m.test_value
+            modulus *= m.test_value
         for k in sorted(monkeys):
-            targets = monkeys[k].take_turn()
+            targets = monkeys[k].take_turn(modulus)
             for kt, vt in targets.items():
                 monkeys[kt].items.extend(vt)
-        for m in monkeys.values():
-            for i, v in enumerate(m.items):
-                m.items[i] = v % modulo
-
-    @staticmethod
-    def compute_business(monkeys, rounds):
-        for _ in range(rounds):
-            Monkey.play_round(monkeys)
-        ordered = sorted(monkeys, key=lambda k: monkeys[k].inspections)
-        return monkeys[ordered[-1]].inspections * monkeys[ordered[-2]].inspections
 
     @classmethod
     def from_text(cls, text, relief_factor):
