@@ -9,9 +9,7 @@ if __name__ == "__main__":
 
     t0 = perf_counter()
     n = len(Map(path).find_shortest_path())
-    print(f"part-1 took {perf_counter() - t0} s")
-    print(n)
+    print(f"part-1: {n} ({perf_counter() - t0:.3} s)")
     t0 = perf_counter()
-    n = len(Map(path).find_shortest_path({"a", "S"}))
-    print(f"part-2 took {perf_counter() - t0} s")
-    print(n)
+    n = len(Map(path).find_shortest_path(0))
+    print(f"part-2: {n} ({perf_counter() - t0:.3} s)")
