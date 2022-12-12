@@ -14,7 +14,7 @@ class Array2D:
         return (0 <= i < ni) and 0 <= j < nj
 
     def __getitem__(self, ndx):
-        assert self.is_valid(ndx)
+        assert self.is_valid(ndx), f"{ndx} is our of range for shape {self.shape}"
         i, j = ndx
         ni, nj = self.shape
         return self.data[i * nj + j]
