@@ -108,7 +108,7 @@ class Map:
                 break
         return path
 
-    def find_traverse(self, start=None):
+    def find_shortest_path(self, start_values=("S",)):
         """Compute shortest path length to get from start to end
 
         Uses Sample algorithm https://en.wikipedia.org/wiki/Pathfinding
@@ -116,28 +116,28 @@ class Map:
         We break this into two parts so that we can speed up part 2 of the
         problem by only computing the map once.
 
+        If we use the default start_values, we get a shortest path from
+        start to end. However, if we use `{"S", "a"}` we instead get the
+        answer to part 2 since it checks all start points with those values.
+
         >>> map = Map("data/example.txt")
         >>> len(map.find_traverse())
         31
         """
-        if start is None:
-            start = self.start
-
+        start_values = set(start_values)
         nodes = self.sample_A()
-        return self.sample_B(nodes, start)
-
-    def find_shortest_from(self, values):
-        values = set(values)
         min_steps = math.inf
-        nodes = self.sample_A()
+        min_path = None
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
-                if self.rows[i][j] in values:
-                    steps = self.sample_B(nodes, (i, j))
-                    if not steps or steps[-1] != self.end:
+                if self.rows[i][j] in start_values:
+                    path = self.sample_B(nodes, (i, j))
+                    if not path or path[-1] != self.end:
                         continue
-                    min_steps = min(min_steps, len(steps))
-        return min_steps
+                    if len(path) < min_steps:
+                        min_steps = len(path)
+                        min_path = path
+        return min_path
 
 
 if __name__ == "__main__":

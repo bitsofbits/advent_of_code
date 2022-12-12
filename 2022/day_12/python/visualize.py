@@ -5,9 +5,9 @@ pallete = r"""$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^
 ]
 
 
-def visualize():
+def visualize(start_values):
     mp = Map("data/data.txt")
-    points = set(mp.find_traverse())
+    points = set(mp.find_shortest_path(start_values))
     raster = ""
     for i, r in enumerate(mp.rows):
         for j, c in enumerate(r):
@@ -23,4 +23,5 @@ def visualize():
 
 
 if __name__ == "__main__":
-    visualize()
+    visualize(start_values={"S"})
+    # visualize(start_values={"S", "a"})
