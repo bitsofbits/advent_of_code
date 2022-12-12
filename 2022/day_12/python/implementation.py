@@ -77,7 +77,7 @@ class Map:
                     continue
             yield (i1, j1)
 
-    def sample_forward(self):
+    def sample_forward(self, start_values):
         nodes = [(self.end, 0)]
         used_pts = set(pt for (pt, _) in nodes)
         for i in count():
@@ -88,8 +88,10 @@ class Map:
                 if pt1 in used_pts:
                     continue
                 nodes.append((pt1, counter + 1))
+                if self.rows[pt1[0]][pt1[1]] in start_values:
+                    return pt1, nodes
                 used_pts.add(pt1)
-        return nodes
+        raise ValueError("chouls not get here")
 
     def sample_back(self, nodes, start):
         by_pt = dict(nodes)
@@ -121,23 +123,16 @@ class Map:
         answer to part 2 since it checks all start points with those values.
 
         >>> map = Map("data/example.txt")
-        >>> len(map.find_traverse())
+        >>> len(map.find_shortest_path())
         31
+        >>> len(map.find_shortest_path({"S", "a"}))
+        29
         """
         start_values = set(start_values)
-        nodes = self.sample_forward()
+        start_pt, nodes = self.sample_forward(start_values)
         min_steps = math.inf
         min_path = None
-        for i in range(self.shape[0]):
-            for j in range(self.shape[1]):
-                if self.rows[i][j] in start_values:
-                    path = self.sample_back(nodes, (i, j))
-                    if not path or path[-1] != self.end:
-                        continue
-                    if len(path) < min_steps:
-                        min_steps = len(path)
-                        min_path = path
-        return min_path
+        return self.sample_back(nodes, start_pt)
 
 
 if __name__ == "__main__":
