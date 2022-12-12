@@ -130,8 +130,6 @@ class Map:
         """
         start_values = set(start_values)
         start_pt, nodes = self.sample_forward(start_values)
-        min_steps = math.inf
-        min_path = None
         return self.sample_back(nodes, start_pt)
 
 
