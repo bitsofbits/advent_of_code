@@ -115,9 +115,6 @@ class Map:
 
         Uses Sample algorithm https://en.wikipedia.org/wiki/Pathfinding
 
-        We break this into two parts so that we can speed up part 2 of the
-        problem by only computing the map once.
-
         If we use the default start_values, we get a shortest path from
         start to end. However, if we use `{"S", "a"}` we instead get the
         answer to part 2 since it checks all start points with those values.
