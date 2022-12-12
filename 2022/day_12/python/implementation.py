@@ -77,7 +77,7 @@ class Map:
                     continue
             yield (i1, j1)
 
-    def sample_A(self):
+    def sample_forward(self):
         nodes = [(self.end, 0)]
         used_pts = set(pt for (pt, _) in nodes)
         for i in count():
@@ -91,7 +91,7 @@ class Map:
                 used_pts.add(pt1)
         return nodes
 
-    def sample_B(self, nodes, start):
+    def sample_back(self, nodes, start):
         by_pt = dict(nodes)
         pt = start
         path = []
@@ -125,13 +125,13 @@ class Map:
         31
         """
         start_values = set(start_values)
-        nodes = self.sample_A()
+        nodes = self.sample_forward()
         min_steps = math.inf
         min_path = None
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self.rows[i][j] in start_values:
-                    path = self.sample_B(nodes, (i, j))
+                    path = self.sample_back(nodes, (i, j))
                     if not path or path[-1] != self.end:
                         continue
                     if len(path) < min_steps:
