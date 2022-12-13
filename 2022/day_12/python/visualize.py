@@ -33,6 +33,7 @@ def visualize(delay):
     curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_YELLOW)
     curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_RED)
+    curses.curs_set(0)
 
     draw(win, mp)
     win.refresh()
