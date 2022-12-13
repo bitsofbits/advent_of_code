@@ -3,9 +3,7 @@ import time
 
 from implementation import Map
 
-pallete = r"""$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^`'. """[
-    ::-1
-]
+pallete = r""".'`^",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"""
 
 
 def getch(mp, pt):
@@ -14,7 +12,7 @@ def getch(mp, pt):
     elif pt == mp.end:
         return "E"
     else:
-        return pallete[mp.data[pt] + 1]
+        return pallete[mp.data[pt]]
 
 
 def draw(win, mp):

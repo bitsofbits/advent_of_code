@@ -1,5 +1,10 @@
-import array
 from itertools import count
+
+
+def ilen(iter):
+    for i, _ in enumerate(iter):
+        pass
+    return i + 1
 
 
 class Array2D:
@@ -14,10 +19,18 @@ class Array2D:
         return (0 <= i < ni) and 0 <= j < nj
 
     def __getitem__(self, ndx):
-        assert self.is_valid(ndx), f"{ndx} is our of range for shape {self.shape}"
+        if not self.is_valid(ndx):
+            raise IndexError(f"{ndx} is our of range for shape {self.shape}")
         i, j = ndx
         ni, nj = self.shape
         return self.data[i * nj + j]
+
+    def __setitem__(self, ndx, value):
+        if not self.is_valid(ndx):
+            raise IndexError(f"{ndx} is our of range for shape {self.shape}")
+        i, j = ndx
+        ni, nj = self.shape
+        self.data[i * nj + j] = value
 
     def __str__(self):
         lines = []
@@ -28,13 +41,6 @@ class Array2D:
                 "".join(chr(x + ord_a) for x in self.data[i * nj : (i + 1) * nj])
             )
         return "\n".join(lines)
-
-
-def adjacent(ch0, ch1):
-    chmap = {"E": "z", "S": "a"}
-    ch0 = chmap.get(ch0, ch0)
-    ch1 = chmap.get(ch1, ch1)
-    return ord(ch1) - ord(ch0) <= 1
 
 
 class Map:
@@ -100,26 +106,28 @@ class Map:
         """
         (i0, j0) = pt
         ch0 = self.data[pt]
-        for di, dj in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             i1, j1 = i0 + di, j0 + dj
-            if not (0 <= i1 < self.data.shape[0] and 0 <= j1 < self.data.shape[1]):
-                continue
             pt1 = (i1, j1)
-            ch1 = self.data[pt1]
-            dc = ch1 - ch0
-            if reverse:
-                dc *= -1
-            if dc > 1:
+            try:
+                ch1 = self.data[pt1]
+            except IndexError:
                 continue
-            yield pt1
+            if reverse:
+                if ch0 - ch1 <= 1:
+                    yield pt1
+            else:
+                if ch1 - ch0 <= 1:
+                    yield pt1
 
     def sample_forward(self, start_value="start"):
         nodes = [(self.end, 0)]
         used_pts = set(pt for (pt, _) in nodes)
         for i in count():
-            if i >= len(nodes):
-                break
-            pt0, counter = nodes[i]
+            try:
+                pt0, counter = nodes[i]
+            except IndexError:
+                raise ValueError(f"path to {start_value} not found")
             for pt1 in self.get_valid_neighbors(pt0, reverse=True):
                 if pt1 in used_pts:
                     continue
@@ -130,24 +138,22 @@ class Map:
                 elif self.data[pt1] == start_value:
                     return pt1, nodes
                 used_pts.add(pt1)
-        raise ValueError(f"path to {start_value} not found")
 
     def sample_back(self, nodes, start):
         by_pt = dict(nodes)
         pt = start
-        path = []
         while True:
-            candidates = [
-                x for x in self.get_valid_neighbors(pt, reverse=False) if x in by_pt
-            ]
-            candidates.sort(key=lambda x: by_pt[x])
-            if not candidates:
-                break
-            pt = candidates[0]
-            path.append(pt)
+            candidates = sorted(
+                (x for x in self.get_valid_neighbors(pt, reverse=False) if x in by_pt),
+                key=lambda x: by_pt[x],
+            )
+            try:
+                pt = candidates[0]
+            except IndexError:
+                raise ValueError(f"path to {start} not found")
+            yield pt
             if pt == self.end:
                 break
-        return path
 
     def find_shortest_path(self, start_value="start"):
         """Compute shortest path length to get from start to end
@@ -159,9 +165,9 @@ class Map:
         answer to part 2 since it checks all start points with those values.
 
         >>> map = Map("data/example.txt")
-        >>> len(map.find_shortest_path())
+        >>> ilen(map.find_shortest_path())
         31
-        >>> len(map.find_shortest_path(0))
+        >>> ilen(map.find_shortest_path(0))
         29
         """
         start_pt, nodes = self.sample_forward(start_value)
