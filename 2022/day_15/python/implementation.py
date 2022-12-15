@@ -1,5 +1,12 @@
-from numba import njit
-from numba.typed import List
+try:
+    from numba import njit
+    from numba.typed import List
+except ImportError:
+
+    def njit(x):
+        return x
+
+    List = list
 
 
 def extract(text):
