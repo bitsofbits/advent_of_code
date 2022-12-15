@@ -106,7 +106,6 @@ def _find_tuning_freq(sensor_info, max_coord):
                     bounds.append((xb, 1))
         bounds.sort()
         depth = 0
-        x0, delta_0 = bounds[0]
         for x, delta in bounds:
             depth -= delta
             if x < 0:
