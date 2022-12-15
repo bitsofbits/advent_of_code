@@ -1,3 +1,7 @@
+from numba import njit
+from numba.typed import List
+
+
 def extract(text):
     if text[-1] in ",:":
         text = text[:-1]
@@ -13,22 +17,15 @@ def manhattan(p0, p1):
 
 class Sensor:
     """
-    >>> s = Sensor("Sensor at x=8, y=7: closest beacon is at x=2, y=10")
-    >>> s
+    >>> Sensor("Sensor at x=8, y=7: closest beacon is at x=2, y=10")
     Parser((8, 7), (2, 10))
-    >>> c = s.coverage()
-    >>> len(c)
-    181
-    >>> min(x for (x, y) in c)
-    -1
-    >>> min(y for (x, y) in c)
-    -2
     """
 
     def __init__(self, text):
         x, y, beacon_x, beacon_y = self.parse(text)
         self.location = (x, y)
         self.nearest_beacon = (beacon_x, beacon_y)
+        self.dist = manhattan(self.location, self.nearest_beacon)
 
     def parse(self, text):
         match text.strip().split():
@@ -49,41 +46,6 @@ class Sensor:
             case _:
                 raise ValueError(text)
 
-    def coverage(self):
-        dist = manhattan(self.location, self.nearest_beacon)
-        x0, y0 = self.location
-        coverage = set()
-        for i in range(-dist, dist + 1):
-            j_range = dist - abs(i)
-            for j in range(-j_range, j_range + 1):
-                coverage.add((x0 + i, y0 + j))
-        return coverage
-
-    def row_coverage(self, row):
-        dist = manhattan(self.location, self.nearest_beacon)
-        x0, y0 = self.location
-        x_range = dist - abs(row - y0)
-        xa = x0 - x_range
-        xb = x0 + x_range + 1
-        return set(range(xa, xb))
-
-    def bounded_row_coverage(self, row, max_coord):
-        dist = manhattan(self.location, self.nearest_beacon)
-        x0, y0 = self.location
-        x_range = dist - abs(row - y0)
-        xa = max(0, x0 - x_range)
-        xb = min(x0 + x_range + 1, max_coord + 1)
-        return set(range(xa, xb))
-
-    def row_bounds(self, row, max_coord):
-        dist = manhattan(self.location, self.nearest_beacon)
-        x0, y0 = self.location
-        x_range = dist - abs(row - y0)
-        xa = max(0, x0 - x_range)
-        xb = min(x0 + x_range + 1, max_coord + 1)
-        return xa, max(xa, xb)
-
-    #
     def __str__(self):
         return f"Parser({self.location}, {self.nearest_beacon})"
 
@@ -110,10 +72,43 @@ def row_coverage(sensors, row):
     coverage = set()
     beacons = set()
     for s in sensors:
-        coverage |= s.row_coverage(row)
-        beacons.add(s.nearest_beacon)
-    coverage = coverage - set(x for (x, y) in beacons if y == row)
-    return len(coverage)
+        x0, y0 = s.location
+        dist = s.dist
+        rng = dist - abs(row - y0)
+        xa = x0 - rng
+        xb = x0 + rng + 1
+        coverage.update(range(xa, xb))
+        xb, yb = s.nearest_beacon
+        if yb == row:
+            beacons.add(xb)
+    return len(coverage - beacons)
+
+
+@njit
+def _find_tuning_freq(sensor_info, max_coord):
+    for y in range(max_coord + 1):
+        bounds = [(-1, 1), (-1, -1)]
+        # Have beginning (-1) to sort before end (+1) if there's a tie
+        for x0, y0, d in sensor_info:
+            rng = d - abs(y - y0)
+            if rng >= 0:
+                xa = x0 - rng
+                xb = x0 + rng + 1
+                if xb >= 0 and xa <= max_coord + 1:
+                    bounds.append((xa, -1))
+                    bounds.append((xb, 1))
+        bounds.sort()
+        depth = 0
+        x0, delta_0 = bounds[0]
+        for x, delta in bounds:
+            depth -= delta
+            if x < 0:
+                continue
+            if x > max_coord:
+                break
+            if depth == 0:
+                return x * 4000000 + y
+    return -1
 
 
 def find_tuning_freq(sensors, max_coord):
@@ -122,23 +117,10 @@ def find_tuning_freq(sensors, max_coord):
     >>> find_tuning_freq(sensors, 20)
     56000011
     """
-    sensors = list(sensors)
-    bounds = [None, None] * 2 * len(sensors)
-    for y in range(max_coord + 1):
-        del bounds[:]
-        # Want b (-1) to sort before e if there's a tie
-        bounds.append((0, -1))
-        bounds.append((0, 1))
-        for s in sensors:
-            b, e = s.row_bounds(y, max_coord)
-            bounds.append((b, -1))
-            bounds.append((e, 1))
-        bounds.sort()
-        depth = 0
-        for x, dd in bounds:
-            depth -= dd
-            if depth == 0 and 0 <= x <= max_coord:
-                return x * 4000000 + y  # Need tp check next item in stack
+    sensor_info = List()
+    for s in sensors:
+        sensor_info.append((*s.location, s.dist))
+    return _find_tuning_freq(sensor_info, max_coord)
 
 
 if __name__ == "__main__":
