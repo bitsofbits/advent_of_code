@@ -59,19 +59,6 @@ class Sensor:
                 coverage.add((x0 + i, y0 + j))
         return coverage
 
-    def bounded_coverage(self, max_coord):
-        dist = manhattan(self.location, self.nearest_beacon)
-        x0, y0 = self.location
-        coverage = set()
-        i0 = max(0, x0 - dist)
-        i1 = min(x0 + dist, max_coord) + 1
-        for i in range(i0, i1):
-            j_range = dist - abs(i - x0)
-            j0 = max(0, y0 - j_range)
-            j1 = min(y0 + j_range, max_coord) + 1
-            coverage |= set((i, j) for j in range(j0, j1))
-        return coverage
-
     def row_coverage(self, row):
         dist = manhattan(self.location, self.nearest_beacon)
         x0, y0 = self.location
@@ -94,9 +81,7 @@ class Sensor:
         x_range = dist - abs(row - y0)
         xa = max(0, x0 - x_range)
         xb = min(x0 + x_range + 1, max_coord + 1)
-        if xb < xa:
-            return None
-        return xa, xb
+        return xa, max(xa, xb)
 
     #
     def __str__(self):
@@ -131,23 +116,6 @@ def row_coverage(sensors, row):
     return len(coverage)
 
 
-# def find_tuning_freq(sensors, max_coord):
-#     """
-#     >>> sensors = load_sensors("data/example.txt")
-#     >>> find_tuning_freq(sensors, 20)
-#     56000011
-#     """
-#     sensors = list(sensors)
-#     for y in range(max_coord + 1):
-#         print(y)
-#         row = set(range(max_coord + 1))
-#         for s in sensors:
-#             row -= s.bounded_row_coverage(y, max_coord)
-#         if row:
-#             [x] = row
-#             return 4000000 * x + y
-
-
 def find_tuning_freq(sensors, max_coord):
     """
     >>> sensors = load_sensors("data/example.txt")
@@ -155,21 +123,21 @@ def find_tuning_freq(sensors, max_coord):
     56000011
     """
     sensors = list(sensors)
+    bounds = [None, None] * 2 * len(sensors)
     for y in range(max_coord + 1):
-        if y % 100000 == 0:
-            print(".", end="", flush=True)
-        bounds = [(0, -1), (0, 1)]  # Want b (-1) to sort before e if there's a tie
+        del bounds[:]
+        # Want b (-1) to sort before e if there's a tie
+        bounds.append((0, -1))
+        bounds.append((0, 1))
         for s in sensors:
-            x = s.row_bounds(y, max_coord)
-            if x is not None:
-                b, e = x
-                bounds.extend([(b, -1), (e, 1)])
+            b, e = s.row_bounds(y, max_coord)
+            bounds.append((b, -1))
+            bounds.append((e, 1))
         bounds.sort()
         depth = 0
         for x, dd in bounds:
             depth -= dd
             if depth == 0 and 0 <= x <= max_coord:
-                print()
                 return x * 4000000 + y  # Need tp check next item in stack
 
 

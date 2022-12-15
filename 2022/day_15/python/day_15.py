@@ -1,4 +1,5 @@
 import sys
+from time import perf_counter
 
 from implementation import find_tuning_freq, load_sensors, row_coverage
 
@@ -9,7 +10,9 @@ if __name__ == "__main__":
     with open(path) as f:
         text = f.read()
 
+    t0 = perf_counter()
     coverage = row_coverage(load_sensors(path), 2000000)
-    print("Part 1: Row coverage:", coverage)
+    print(f"Part 1: Row coverage: {coverage} ({perf_counter() - t0})")
+    t0 = perf_counter()
     freq = find_tuning_freq(load_sensors(path), 4000000)
-    print("Part 2: Tuning freq", freq)
+    print(f"Part 2: Tuning freq: {freq} ({perf_counter() - t0})")
