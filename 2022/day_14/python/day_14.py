@@ -12,4 +12,4 @@ if __name__ == "__main__":
     n_units = Cave(text).fill_with_sand()
     print("Part 1: Number of units of sand:", n_units)
     n_units = Cave(text, has_floor=True).fill_with_sand()
-    print("Part 1: Number of units of sand:", n_units)
+    print("Part 2: Number of units of sand with floor:", n_units)
