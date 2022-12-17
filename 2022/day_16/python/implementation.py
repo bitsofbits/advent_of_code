@@ -132,7 +132,7 @@ def dual_traverse_from(labels, nodes, opened, time_left, states, score, scores):
     >>> nodes = parse_graph(example_text)
     >>> opened = {k for k in nodes if nodes[k].flow == 0}
     >>> scores = {k : 0 for k in range(0, 27)}
-    >>> released = dual_traverse_from({"AA", "AA"}, nodes, opened, 26, {}, 0, scores)
+    >>> released = dual_traverse_from(("AA", "AA"), nodes, opened, 26, {}, 0, scores)
     >>> released
     1707
     """
