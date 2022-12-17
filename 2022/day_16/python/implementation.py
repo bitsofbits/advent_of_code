@@ -132,21 +132,28 @@ def dual_traverse_from(labels, nodes, opened, time_left, states, score, scores):
     >>> nodes = parse_graph(example_text)
     >>> opened = {k for k in nodes if nodes[k].flow == 0}
     >>> scores = {k : 0 for k in range(0, 27)}
-    >>> released = dual_traverse_from(["AA", "AA"], nodes, opened, 26, {}, 0, scores)
+    >>> released = dual_traverse_from({"AA", "AA"}, nodes, opened, 26, {}, 0, scores)
     >>> released
     1707
     """
-    labels = tuple(sorted(labels))
-    lbl1, lbl2 = labels
     time_left -= 1
     if time_left <= 0 or len(opened) >= len(nodes):
         return score
 
-    state_key = (time_left, labels, tuple(sorted(opened)))
+    state_key = (time_left, frozenset(labels), frozenset(opened))
     if state_key in states:
         return score + states[state_key]
 
-    # # 2176 is too low
+    lbl1, lbl2 = labels
+    nd1, nd2 = nodes[lbl1], nodes[lbl2]
+    if time_left == 1:
+        # No sense traversing since we can't turn things on in time
+        cls1 = lbl1 not in opened
+        cls2 = lbl2 not in opened
+        remaining = (cls1 * nd1.flow + cls2 * nd2.flow) * time_left
+        states[state_key] = remaining
+        return remaining
+
     remaining = [x.flow for (k, x) in nodes.items() if k not in opened]
     remaining.sort(reverse=True)
     max_left = 0
@@ -155,14 +162,14 @@ def dual_traverse_from(labels, nodes, opened, time_left, states, score, scores):
         max_left += x * tl
         if i % 2:
             tl = max(tl - 2, 0)
-    if score + max_left < scores[time_left]:
-        return score  # give up
+    if score + max_left <= scores[time_left]:
+        return 0  # give up
 
     scores[time_left] = max(score, scores[time_left])
 
     released = None
-    for d1, opn1 in [(x, False) for x in nodes[lbl1].dests] + [(lbl1, True)]:
-        for d2, opn2 in [(x, False) for x in nodes[lbl2].dests] + [(lbl2, True)]:
+    for d1, opn1 in [(x, False) for x in nd1.dests] + [(lbl1, True)]:
+        for d2, opn2 in [(x, False) for x in nd2.dests] + [(lbl2, True)]:
 
             if (lbl1 == lbl2) and (opn1 is opn2 is True):
                 # Can only open a valve once
@@ -175,10 +182,10 @@ def dual_traverse_from(labels, nodes, opened, time_left, states, score, scores):
                 lcl_opened.add(lbl1)
             if opn2:
                 lcl_opened.add(lbl2)
-            lcl_score = (opn1 * nodes[lbl1].flow + opn2 * nodes[lbl2].flow) * time_left
+            lcl_score = (opn1 * nd1.flow + opn2 * nd2.flow) * time_left
             assert lcl_score >= 0
             new_r = dual_traverse_from(
-                [d1, d2],
+                (d1, d2),
                 nodes,
                 opened=lcl_opened,
                 time_left=time_left,
@@ -212,7 +219,7 @@ def dual_max_pressure_release(nodes):
     """
     opened = {k for k in nodes if nodes[k].flow == 0}
     scores = {k: 0 for k in range(0, 27)}
-    return dual_traverse_from(["AA", "AA"], nodes, opened, 26, {}, 0, scores)
+    return dual_traverse_from(("AA", "AA"), nodes, opened, 26, {}, 0, scores)
 
 
 if __name__ == "__main__":
