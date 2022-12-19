@@ -76,16 +76,22 @@ def _fmg(time_left, costs, robots, ore, states, scores):
     if time_left <= 0:
         return ore["geode"]
 
+    if robots["ore"] > max(x["ore"] for x in costs.values()):
+        return -1
+    if robots["clay"] > costs["obsidian"]["clay"]:
+        return -1
+    if robots["obsidian"] > costs["geode"]["obsidian"]:
+        return -1
+
+    best_possible_score = upper_bound(time_left, costs, robots, ore)
+    if best_possible_score < scores[0]:
+        return -1
+
     key = (time_left, frozenset(robots.items()), frozenset(ore.items()))
     if key in states:
         return states[key]
 
-    best_possible_score = upper_bound(time_left, costs, robots, ore)
-
     time_left -= 1
-
-    if best_possible_score < scores[0]:
-        return -1
 
     # We can't use new_ore for building robots
     updated_ore = ore.copy()
