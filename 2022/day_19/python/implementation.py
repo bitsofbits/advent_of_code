@@ -43,9 +43,15 @@ def load_blueprints(path):
 def upper_bound(t, costs, robots, ore):
     OG = ore["geode"]
     OO = ore["obsidian"]
+    OC = ore["clay"]
+    Oo = ore["ore"]
     RG = robots["geode"]
     RO = robots["obsidian"]
+    RC = robots["clay"]
+    Ro = robots["ore"]
     CGO = costs["geode"]["obsidian"]
+    COC = costs["obsidian"]["clay"]
+    CCo = costs["clay"]["ore"]
     # Make the assumption we can make 1 geode and one obsidian robot per round
     while t > 0:
         OG += RG
@@ -53,7 +59,15 @@ def upper_bound(t, costs, robots, ore):
             OO -= CGO
             RG += 1
         OO += RO
-        RO += 1
+        if OC >= COC:
+            RO += 1
+            OC -= COC
+        OC += RC
+        if Oo >= CCo:
+            RC += 1
+            Oo -= CCo
+        Oo += Ro
+        Ro += 1
         t -= 1
     return OG
 
@@ -71,13 +85,12 @@ def _fmg(time_left, costs, robots, ore, states, scores):
     time_left -= 1
 
     if best_possible_score < scores[0]:
-        return 0
+        return -1
 
     # We can't use new_ore for building robots
     updated_ore = ore.copy()
     for k, cnt in robots.items():
         updated_ore[k] += cnt
-        assert updated_ore[k] >= 0, (k, cnt)
 
     # If we don't build anything this round
     geodes = _fmg(time_left, costs, robots, updated_ore, states, scores)
@@ -88,7 +101,6 @@ def _fmg(time_left, costs, robots, ore, states, scores):
             local_ore = updated_ore.copy()
             for k, v in robot_costs.items():
                 local_ore[k] -= v
-                assert local_ore[k] >= 0, (k, v, ore[k], local_ore[k])
             local_robots = robots.copy()
             local_robots[robot_type] += 1
             geodes = max(
@@ -120,7 +132,7 @@ class Factory:
         return _fmg(time, self.costs, robots, ore, states={}, scores={0: 0})
 
 
-def find_max_geodes(blueprint):
+def find_max_geodes_24(blueprint):
     return Factory(blueprint).find_max_geodes(24)
 
 
@@ -128,15 +140,15 @@ def compute_total_quality(blueprints):
     total_quality = 0
     keys = list(blueprints)
     args = [blueprints[k] for k in keys]
-    with ProcessPoolExecutor(10) as exe:
-        for k, g in zip(keys, exe.map(find_max_geodes, args)):
+    with ProcessPoolExecutor() as exe:
+        for k, g in zip(keys, exe.map(find_max_geodes_24, args)):
             q = k * g
             print(k, g, q)
             total_quality += q
     return total_quality
 
 
-def find_max_geodes2(blueprint):
+def find_max_geodes_32(blueprint):
     return Factory(blueprint).find_max_geodes(32)
 
 
@@ -145,8 +157,8 @@ def compute_geode_product(blueprints):
     keys = list(blueprints.keys())[:3]
     assert keys == [1, 2, 3][: len(keys)], keys
     args = [blueprints[k] for k in keys]
-    with ProcessPoolExecutor(3) as exe:
-        for k, g in zip(keys, exe.map(find_max_geodes2, args)):
+    with ProcessPoolExecutor() as exe:
+        for k, g in zip(keys, exe.map(find_max_geodes_32, args)):
             print(k, g)
             prod *= g
     return prod
