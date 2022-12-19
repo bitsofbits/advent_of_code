@@ -65,8 +65,11 @@ def upper_bound(t, costs, robots, ore):
 
 
 def _fmg(time_left, costs, robots, ore, states, scores, max_ore_costs):
-    if time_left == 1:
-        return ore["geode"] + robots["geode"]
+    if time_left == 2:
+        geodes = ore["geode"] + 2 * robots["geode"]
+        if all(v <= ore[k] for (k, v) in costs["geode"].items()):
+            geodes += 1
+        return geodes
 
     copied = False
     if "ore" in costs and robots["ore"] == max_ore_costs:
