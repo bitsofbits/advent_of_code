@@ -1,0 +1,146 @@
+from concurrent.futures import ProcessPoolExecutor
+
+
+def parse_blueprint(line):
+    lblstr, coststr = line.split(":")
+    *_, lblstr = lblstr.strip().split()
+    lbl = int(lblstr)
+    all_costs = {}
+    for txt in coststr.split("."):
+        txt = txt.strip()
+        if not txt:
+            continue
+        tokens = txt.split()
+        assert tokens[0] == "Each", tokens
+        kind = tokens[1]
+        all_costs[kind] = costs = {}
+        assert tokens[2:4] == ["robot", "costs"]
+        tokens = tokens[4:]
+        for i in range(0, len(tokens), 3):
+            costs[tokens[i + 1]] = int(tokens[i])
+    return lbl, all_costs
+
+
+def load_blueprints(path):
+    """
+    >>> blueprints = load_blueprints("data/example.txt")
+    >>> list(blueprints.keys())
+    [1, 2]
+    >>> for k, v in blueprints.items(): print(v)
+    {'ore': {'ore': 4}, 'clay': {'ore': 2}, 'obsidian': {'ore': 3, 'clay': 14}, 'geode': {'ore': 2, 'obsidian': 7}}
+    {'ore': {'ore': 2}, 'clay': {'ore': 3}, 'obsidian': {'ore': 3, 'clay': 8}, 'geode': {'ore': 3, 'obsidian': 12}}
+    """
+    blueprints = {}
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                k, v = parse_blueprint(line)
+                blueprints[k] = v
+    return blueprints
+
+
+def upper_bound(t, costs, robots, ore):
+    OG = ore["geode"]
+    RG = robots["geode"]
+    return OG + t * RG + t * (t - 1) // 2
+
+
+def _fmg(time_left, costs, robots, ore, states, scores):
+    if time_left <= 0:
+        return ore["geode"]
+
+    key = (time_left, frozenset(robots.items()), frozenset(ore.items()))
+    if key in states:
+        return states[key]
+
+    best_possible_score = upper_bound(time_left, costs, robots, ore)
+
+    time_left -= 1
+
+    if best_possible_score < scores[0]:
+        return 0
+
+    # We can't use new_ore for building robots
+    updated_ore = ore.copy()
+    for k, cnt in robots.items():
+        updated_ore[k] += cnt
+        assert updated_ore[k] >= 0, (k, cnt)
+
+    # If we don't build anything this round
+    geodes = _fmg(time_left, costs, robots, updated_ore, states, scores)
+    # Try building a robot
+    for robot_type, robot_costs in costs.items():
+        if all(v <= ore[k] for (k, v) in robot_costs.items()):
+            # We can build this type of robot, so let's try
+            local_ore = updated_ore.copy()
+            for k, v in robot_costs.items():
+                local_ore[k] -= v
+                assert local_ore[k] >= 0, (k, v, ore[k], local_ore[k])
+            local_robots = robots.copy()
+            local_robots[robot_type] += 1
+            geodes = max(
+                geodes, _fmg(time_left, costs, local_robots, local_ore, states, scores)
+            )
+
+    states[key] = geodes
+    scores[0] = max(scores[0], geodes)
+    return geodes
+
+
+class Factory:
+    """
+    >>> blueprints = load_blueprints("data/example.txt")
+    >>> factory = Factory(blueprints[1])
+
+    >>> factory.find_max_geodes(19)  # 24 -> 9
+    1
+    """
+
+    initial_robots = {"ore": 1, "clay": 0, "obsidian": 0, "geode": 0}
+
+    def __init__(self, costs):
+        self.costs = costs
+
+    def find_max_geodes(self, time):
+        robots = self.initial_robots.copy()
+        ore = {k: 0 for k in robots.keys()}
+        return _fmg(time, self.costs, robots, ore, states={}, scores={0: 0})
+
+
+def find_max_geodes(blueprint):
+    return Factory(blueprint).find_max_geodes(24)
+
+
+def compute_total_quality(blueprints):
+    total_quality = 0
+    keys = list(blueprints)
+    args = [blueprints[k] for k in keys]
+    with ProcessPoolExecutor(10) as exe:
+        for k, g in zip(keys, exe.map(find_max_geodes, args)):
+            q = k * g
+            print(k, g, q)
+            total_quality += q
+    return total_quality
+
+
+def find_max_geodes2(blueprint):
+    return Factory(blueprint).find_max_geodes(32)
+
+
+def compute_geode_product(blueprints):
+    prod = 1
+    keys = list(blueprints.keys())[:3]
+    assert keys == [1, 2, 3][: len(keys)], keys
+    args = [blueprints[k] for k in keys]
+    with ProcessPoolExecutor(3) as exe:
+        for k, g in zip(keys, exe.map(find_max_geodes2, args)):
+            print(k, g)
+            prod *= g
+    return prod
+
+
+if __name__ == "__main__":
+    import doctest
+
+    doctest.testmod()
