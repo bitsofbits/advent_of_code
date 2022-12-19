@@ -44,15 +44,11 @@ def upper_bound(t, costs, robots, ore):
     OG = ore["geode"]
     OO = ore["obsidian"]
     OC = ore["clay"]
-    Oo = ore["ore"]
     RG = robots["geode"]
     RO = robots["obsidian"]
     RC = robots["clay"]
-    Ro = robots["ore"]
     CGO = costs["geode"]["obsidian"]
     COC = costs["obsidian"]["clay"]
-    CCo = costs["clay"]["ore"]
-    # Make the assumption we can make 1 geode and one obsidian robot per round
     while t > 0:
         OG += RG
         if OO >= CGO:
@@ -63,25 +59,28 @@ def upper_bound(t, costs, robots, ore):
             RO += 1
             OC -= COC
         OC += RC
-        if Oo >= CCo:
-            RC += 1
-            Oo -= CCo
-        Oo += Ro
-        Ro += 1
+        RC += 1
         t -= 1
     return OG
 
 
-def _fmg(time_left, costs, robots, ore, states, scores):
-    if time_left <= 0:
-        return ore["geode"]
+def _fmg(time_left, costs, robots, ore, states, scores, max_ore_costs):
+    if time_left == 1:
+        return ore["geode"] + robots["geode"]
 
-    if robots["ore"] > max(x["ore"] for x in costs.values()):
-        return -1
-    if robots["clay"] > costs["obsidian"]["clay"]:
-        return -1
-    if robots["obsidian"] > costs["geode"]["obsidian"]:
-        return -1
+    copied = False
+    if "ore" in costs and robots["ore"] == max_ore_costs:
+        if not copied:
+            costs = costs.copy()
+            copied = True
+        del costs["ore"]
+    if "clay" in costs and robots["clay"] == costs["obsidian"]["clay"]:
+        if not copied:
+            costs = costs.copy()
+            copied = True
+        del costs["clay"]
+    if robots["obsidian"] == costs["geode"]["obsidian"]:
+        return ore["geode"] + time_left * (robots["geode"] + time_left - 1) // 2
 
     best_possible_score = upper_bound(time_left, costs, robots, ore)
     if best_possible_score < scores[0]:
@@ -99,7 +98,7 @@ def _fmg(time_left, costs, robots, ore, states, scores):
         updated_ore[k] += cnt
 
     # If we don't build anything this round
-    geodes = _fmg(time_left, costs, robots, updated_ore, states, scores)
+    geodes = _fmg(time_left, costs, robots, updated_ore, states, scores, max_ore_costs)
     # Try building a robot
     for robot_type, robot_costs in costs.items():
         if all(v <= ore[k] for (k, v) in robot_costs.items()):
@@ -110,7 +109,16 @@ def _fmg(time_left, costs, robots, ore, states, scores):
             local_robots = robots.copy()
             local_robots[robot_type] += 1
             geodes = max(
-                geodes, _fmg(time_left, costs, local_robots, local_ore, states, scores)
+                geodes,
+                _fmg(
+                    time_left,
+                    costs,
+                    local_robots,
+                    local_ore,
+                    states,
+                    scores,
+                    max_ore_costs,
+                ),
             )
 
     states[key] = geodes
@@ -135,7 +143,8 @@ class Factory:
     def find_max_geodes(self, time):
         robots = self.initial_robots.copy()
         ore = {k: 0 for k in robots.keys()}
-        return _fmg(time, self.costs, robots, ore, states={}, scores={0: 0})
+        max_ore_costs = max(x["ore"] for x in self.costs.values())
+        return _fmg(time, self.costs, robots, ore, {}, {0: 0}, max_ore_costs)
 
 
 def find_max_geodes_24(blueprint):
