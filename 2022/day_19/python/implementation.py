@@ -42,8 +42,20 @@ def load_blueprints(path):
 
 def upper_bound(t, costs, robots, ore):
     OG = ore["geode"]
+    OO = ore["obsidian"]
     RG = robots["geode"]
-    return OG + t * RG + t * (t - 1) // 2
+    RO = robots["obsidian"]
+    CGO = costs["geode"]["obsidian"]
+    # Make the assumption we can make 1 geode and one obsidian robot per round
+    while t > 0:
+        OG += RG
+        if OO >= CGO:
+            OO -= CGO
+            RG += 1
+        OO += RO
+        RO += 1
+        t -= 1
+    return OG
 
 
 def _fmg(time_left, costs, robots, ore, states, scores):

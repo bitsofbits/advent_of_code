@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     t0 = perf_counter()
     q = compute_total_quality(blueprints)
-    print(f"Part 1: total quality: ({q} {perf_counter() - t0:.0f}s)")
+    print(f"Part 1: total quality: {q} ({perf_counter() - t0:.0f}s)")
 
     t0 = perf_counter()
     p = compute_geode_product(blueprints)
