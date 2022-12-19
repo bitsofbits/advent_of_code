@@ -1,7 +1,7 @@
 import sys
 from time import perf_counter
 
-from implement2 import dual_traverse, parse_graph, simplify_AA, traverse
+from implementation import dual_traverse, parse_graph, simplify_AA, traverse
 
 if __name__ == "__main__":
     args = sys.argv[1:]
