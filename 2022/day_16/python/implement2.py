@@ -196,7 +196,7 @@ def _dispatch(lbl, other_lbl_tl, nodes, time_left, opened, states):
 
     for (d, c) in dests:
         dtl = time_left - c
-        if dtl > 0:
+        if dtl > 1:
             propped = True
             lbl_tls = ((d, dtl), other_lbl_tl)
             released = max(
@@ -208,7 +208,7 @@ def _dispatch(lbl, other_lbl_tl, nodes, time_left, opened, states):
         opn_copy = None
         for (d, c) in dests:
             dtl = time_left - 1 - c
-            if dtl > 0:
+            if dtl > 1:
                 propped = True
                 if opn_copy is None:
                     opn_copy = frozenset(opened | {lbl})
