@@ -1,4 +1,5 @@
 import re
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from math import inf
 from typing import NamedTuple, Tuple
 
@@ -69,7 +70,7 @@ def parse_graph(text):
     return nodes
 
 
-def simplify(nodes, preserve={"AA"}):
+def simplify(nodes, preserve={"AA"}, preserve_nonzero=True):
     """
     >>> nodes = simplify(parse_graph(example_text), preserve={"AA"})
     >>> for k in sorted(nodes): print(nodes[k])
@@ -81,6 +82,11 @@ def simplify(nodes, preserve={"AA"}):
     Node(label='HH', flow=22, dests=(('EE', 3),))
     Node(label='JJ', flow=21, dests=(('AA', 2),))
     """
+    if preserve_nonzero:
+        preserve = set(preserve)
+        for k, v in nodes.items():
+            if v.flow > 0:
+                preserve.add(k)
     nodes = nodes.copy()
     for k in list(nodes):
         nd = nodes[k]
@@ -92,7 +98,7 @@ def simplify(nodes, preserve={"AA"}):
                 parents[d].add((k, c))
         for k in list(nodes):
             nd_k = nodes[k]
-            if nd_k.flow == 0 and k not in preserve:
+            if k not in preserve:
                 for p, c0 in parents[k]:
                     nd_p = nodes[p]
                     new_dests = {d: c for (d, c) in nd_p.dests if d != k}
@@ -131,6 +137,33 @@ def simplify_AA(nodes):
     return s2
 
 
+def add_paths(nodes):
+    """
+    >>> nodes = simplify(parse_graph(example_text), preserve={"AA"})
+    >>> add_paths(nodes)
+    >>> for k in sorted(nodes): print(nodes[k])
+    Node(label='AA', flow=0, dests=(('BB', 1), ('CC', 2), ('DD', 1), ('EE', 2), ('HH', 5), ('JJ', 2)))
+    Node(label='BB', flow=13, dests=(('AA', 1), ('CC', 1), ('DD', 2), ('EE', 3), ('HH', 6), ('JJ', 3)))
+    Node(label='CC', flow=2, dests=(('AA', 2), ('BB', 1), ('DD', 1), ('EE', 2), ('HH', 5), ('JJ', 4)))
+    Node(label='DD', flow=20, dests=(('AA', 1), ('BB', 2), ('CC', 1), ('EE', 1), ('HH', 4), ('JJ', 3)))
+    Node(label='EE', flow=3, dests=(('AA', 2), ('BB', 3), ('CC', 2), ('DD', 1), ('HH', 3), ('JJ', 4)))
+    Node(label='HH', flow=22, dests=(('AA', 5), ('BB', 6), ('CC', 5), ('DD', 4), ('EE', 3), ('JJ', 7)))
+    Node(label='JJ', flow=21, dests=(('AA', 2), ('BB', 3), ('CC', 4), ('DD', 3), ('EE', 4), ('HH', 7)))
+    """
+    labels = list(nodes)
+    for a in labels:
+        for b in labels:
+            if a <= b:
+                continue
+            simple = simplify(nodes, preserve={a, b}, preserve_nonzero=False)
+            A = nodes[a]
+            dests = tuple(sorted(set(A.dests) | set(simple[a].dests)))
+            nodes[a] = Node(label=a, flow=A.flow, dests=dests)
+            B = nodes[b]
+            dests = tuple(sorted(set(B.dests) | set(simple[b].dests)))
+            nodes[b] = Node(label=b, flow=B.flow, dests=dests)
+
+
 def setup_nodes(graph):
     nodes = {}
     for k, nd in graph.items():
@@ -153,16 +186,9 @@ def _traverse(lbl, nodes, time_left, opened, states):
     lcl_score = flow * (time_left - 1) * (lbl not in opened)
     released = lcl_score
 
-    if time_left > 2:
-        for (d, c) in dests:
-            released = max(
-                released,
-                _traverse(d, nodes, time_left - c, opened, states),
-            )
-
-    if lbl not in opened and time_left > 3:
-        opened = frozenset(opened | {lbl})
-        for (d, c) in dests:
+    opened = frozenset(opened | {lbl})
+    for (d, c) in dests:
+        if d not in opened and time_left - c > 2:
             released = max(
                 released,
                 _traverse(d, nodes, time_left - c - 1, opened, states) + lcl_score,
@@ -175,58 +201,54 @@ def _traverse(lbl, nodes, time_left, opened, states):
 def traverse(graph, time_left):
     """traverse graph within time_limit
 
-    >>> nodes = simplify_AA(parse_graph(example_text))
+    >>> nodes = simplify(parse_graph(example_text))
+    >>> add_paths(nodes)
     >>> traverse(nodes, 30)
     1651
     """
     nodes, opened = setup_nodes(graph)
-    return _traverse("AA", nodes, time_left, opened, states={})
+    released = 0
+    _, dests = nodes["AA"]
+    with ProcessPoolExecutor() as exe:
+        futures = []
+        for nd, cost in dests:
+            f = exe.submit(_traverse, nd, nodes, time_left - cost, opened, states={})
+            futures.append(f)
+        for f in as_completed(futures):
+            released = max(released, f.result())
+    return released
 
 
 def _dispatch(lbl, other_lbl_tl, nodes, time_left, opened, states):
     assert time_left >= 0
     flow, dests = nodes[lbl]
-    _, otl = other_lbl_tl
+    olbl, otl = other_lbl_tl
+
+    assert lbl not in opened, (lbl, opened)
 
     flow, dests = nodes[lbl]
-    lcl_score = flow * (time_left - 1) * (lbl not in opened)
+    lcl_score = flow * (time_left - 1)
     released = lcl_score
 
-    propped = False
+    propogated = False
 
+    opened = frozenset(opened | {lbl})
     for (d, c) in dests:
-        dtl = time_left - c
+        if d in opened or d == olbl:
+            continue
+        propogated = True
+        dtl = time_left - 1 - c
         if dtl > 0:
-            propped = True
             lbl_tls = ((d, dtl), other_lbl_tl)
             released = max(
                 released,
-                _dual_traverse(lbl_tls, nodes, max(otl, dtl), opened, states),
+                _dual_traverse(lbl_tls, nodes, max(otl, dtl), opened, states)
+                + lcl_score,
             )
-
-    if lbl not in opened:
-        opn_copy = None
-        for (d, c) in dests:
-            dtl = time_left - 1 - c
-            if dtl > 0:
-                propped = True
-                if opn_copy is None:
-                    opn_copy = frozenset(opened | {lbl})
-                lbl_tls = ((d, dtl), other_lbl_tl)
-                released = max(
-                    released,
-                    _dual_traverse(lbl_tls, nodes, max(otl, dtl), opn_copy, states)
-                    + lcl_score,
-                )
-
-    if not propped and otl > 0:
+    if not propogated and otl > 0:
         # We need to allow the other agent to run
-        lbl_tls = (other_lbl_tl, (lbl, 0))
-        released = max(
-            released,
-            _dual_traverse(lbl_tls, nodes, otl, opened, states) + lcl_score,
-        )
-
+        lbl_tls = (other_lbl_tl, (lbl, -1))
+        released = _dual_traverse(lbl_tls, nodes, otl, opened, states) + lcl_score
     return released
 
 
@@ -241,12 +263,14 @@ def _dual_traverse(lbl_tls, nodes, time_left, opened, states):
 
     (lbl1, t1), (lbl2, t2) = lbl_tls
 
-    if t1 == t2 == time_left and lbl1 != lbl2:
+    assert lbl1 != lbl2
+
+    if t1 == t2 == time_left:
         r1 = _dispatch(lbl1, (lbl2, t2), nodes, time_left, opened, states)
         r2 = _dispatch(lbl2, (lbl1, t1), nodes, time_left, opened, states)
         released = max(r1, r2)
     elif t1 == time_left:
-        assert t1 > t2 or (t1 == t2 and lbl1 == lbl2)
+        assert t1 > t2
         released = _dispatch(lbl1, (lbl2, t2), nodes, time_left, opened, states)
     elif t2 == time_left:
         assert t2 > t1
@@ -263,11 +287,28 @@ def _dual_traverse(lbl_tls, nodes, time_left, opened, states):
 def dual_traverse(graph, time_left):
     """traverse graph within time_limit with two actors
 
-    >>> nodes = simplify_AA(parse_graph(example_text))
+    >>> nodes = simplify(parse_graph(example_text))
+    >>> add_paths(nodes)
     >>> dual_traverse(nodes, 26)
     1707
     """
     nodes, opened = setup_nodes(graph)
+    released = 0
+    _, dests = nodes["AA"]
+    with ProcessPoolExecutor() as exe:
+        futures = []
+        for nd_a, cost_a in dests:
+            for nd_b, cost_b in dests:
+                if nd_b <= nd_a:
+                    continue
+                dtls = ((nd_a, time_left - cost_a), (nd_b, time_left - cost_b))
+                t = time_left - min(cost_a, cost_b)
+                f = exe.submit(_dual_traverse, dtls, nodes, t, opened, states={})
+                futures.append(f)
+        for f in as_completed(futures):
+            released = max(released, f.result())
+    return released
+
     lbl_ts = (("AA", time_left),) * 2
     return _dual_traverse(lbl_ts, nodes, time_left, opened, states={})
 

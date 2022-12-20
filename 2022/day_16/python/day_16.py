@@ -1,7 +1,8 @@
 import sys
 from time import perf_counter
 
-from implementation import dual_traverse, parse_graph, simplify_AA, traverse
+from implementation import (add_paths, dual_traverse, parse_graph, simplify,
+                            traverse)
 
 if __name__ == "__main__":
     args = sys.argv[1:]
@@ -10,7 +11,8 @@ if __name__ == "__main__":
     with open(path) as f:
         text = f.read()
 
-    nodes = simplify_AA(parse_graph(text))
+    nodes = simplify(parse_graph(text))
+    add_paths(nodes)
 
     t0 = perf_counter()
     pressure = traverse(nodes, 30)

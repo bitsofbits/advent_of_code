@@ -19,15 +19,6 @@ def parse_text(text):
     return [int(x.strip()) for x in text.strip().split()]
 
 
-def shift(i, numbers):
-    _, n = numbers[i]
-    if n != 0:
-        N = len(numbers) - 1
-        x = numbers.pop(i)
-        j = (i + n) % N
-        numbers.insert(j, x)
-
-
 def equiv(x, y):
     """x and y are the same within a rotation"""
     if x == y:
