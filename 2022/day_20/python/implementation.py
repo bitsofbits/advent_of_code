@@ -48,9 +48,9 @@ def mix(numbers, repeats=1):
     True
     """
     M = len(numbers)
-    numbers = deque(numbers)
-    indices = deque(range(M))
     N = len(numbers) - 1
+    numbers = deque(numbers, maxlen=M)
+    indices = deque(range(M), maxlen=M)
     for _ in range(repeats):
         for i in range(M):
             # Ugh N**2 performance here.
@@ -73,8 +73,7 @@ def coord_sum(numbers):
     """
     n = len(numbers)
     i0 = numbers.index(0)
-    coords = [numbers[(i0 + 1000 * (i + 1)) % n] for i in range(3)]
-    return sum(coords)
+    return sum(numbers[(i0 + 1000 * (i + 1)) % n] for i in range(3))
 
 
 def decrypt(numbers):
