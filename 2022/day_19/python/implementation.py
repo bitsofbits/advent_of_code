@@ -129,9 +129,15 @@ class Factory:
     """
     >>> blueprints = load_blueprints("data/example.txt")
     >>> factory = Factory(blueprints[1])
-
-    >>> factory.find_max_geodes(19)  # 24 -> 9
-    1
+    >>> factory.find_max_geodes(24)
+    9
+    >>> factory.find_max_geodes(32)
+    56
+    >>> factory = Factory(blueprints[2])
+    >>> factory.find_max_geodes(24)
+    12
+    >>> factory.find_max_geodes(32)
+    62
     """
 
     initial_robots = {"ore": 1, "clay": 0, "obsidian": 0, "geode": 0}
