@@ -41,6 +41,21 @@ def load_blueprints(path):
 
 
 def upper_bound(t, costs, robots, ore):
+    """Estimate upper bound for score based on current state.
+
+    Whenever the real rules require us to make a choice such as
+    which robot to build or whether to use a resource for building
+    one robot or another, we do both. So:
+
+    * We can build as many robots per time step as we want
+    * Nothing requires ore
+
+    With these two constraints we can quickly determine a bound. We could
+    go further and include the dependency of clay robots on ore, but it
+    adds some complexity since we are removing the clay cost below and it
+    doesn't actually help.
+
+    """
     OG = ore["geode"]
     OO = ore["obsidian"]
     OC = ore["clay"]
@@ -94,42 +109,54 @@ class Factory:
 
     def _fmg(self, time_left, costs, robots, ore):
         if time_left == 2:
+            # No matter what, we get this much
             geodes = ore["geode"] + 2 * robots["geode"]
             if all(v <= ore[k] for (k, v) in costs["geode"].items()):
+                # If possible we build one more geode robot to get one more geode
                 geodes += 1
             return geodes
 
         if "ore" in costs and robots["ore"] == self.max_ore_costs:
+            # Remove ore from costs so we don't build ore robots any more
             costs = {k: v for (k, v) in costs.items() if k != "ore"}
         if "clay" in costs and robots["clay"] == costs["obsidian"]["clay"]:
+            # Remove clay from costs so we don't build clay robots any more
             costs = {k: v for (k, v) in costs.items() if k != "clay"}
         if robots["obsidian"] == costs["geode"]["obsidian"]:
             if robots["ore"] >= costs["geode"]["ore"]:
+                # We build geode robots every time, so do that
                 return ore["geode"] + time_left * (robots["geode"] + time_left - 1) // 2
             else:
+                # Remove obsidian from costs so we don't build any more.
                 costs = {k: v for (k, v) in costs.items() if k != "obsidian"}
 
+        # If our score is less than our estimated upper bound give up on this path.
         local_best_score = upper_bound(time_left, costs, robots, ore)
         if local_best_score < self.best_score:
             return -1
 
+        # Make a key based on the current state
         key = (time_left, frozenset(robots.items()), frozenset(ore.items()))
         if key in self.states:
+            # We've seen this state before, so just return it's value
             return self.states[key]
 
         time_left -= 1
 
-        # We can't use new_ore for building robots
+        # Later on, we check if we can build a robot are based on the current
+        # ore so make a copy and update that based on the count of each robot.
         updated_ore = ore.copy()
         for k, cnt in robots.items():
             updated_ore[k] += cnt
 
-        # If we don't build anything this round
+        # Try not building anything
         geodes = self._fmg(time_left, costs, robots, updated_ore)
         # Try building a robot
         for robot_type, robot_costs in costs.items():
             if all(v <= ore[k] for (k, v) in robot_costs.items()):
                 # We can build this type of robot, so let's try
+                # We need to copy any objects we are going to modify
+                # so we don't mess them up for other paths.
                 local_ore = updated_ore.copy()
                 for k, v in robot_costs.items():
                     local_ore[k] -= v
@@ -145,7 +172,9 @@ class Factory:
                     ),
                 )
 
+        # Store this state in case we see it again
         self.states[key] = geodes
+        # Update the best score, so we can use it with upper_bound (above)
         self.best_score = max(self.best_score, geodes)
         return geodes
 
