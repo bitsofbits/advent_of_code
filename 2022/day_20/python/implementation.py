@@ -41,27 +41,29 @@ def equiv(x, y):
     return False
 
 
-def mix(numbers, n=1):
+def mix(numbers, repeats=1):
     """
     >>> numbers = parse_text(example_text)
     >>> equiv(mix(numbers), [1, 2, -3, 4, 0, 3, -2])
     True
     """
-    numbers = deque(enumerate(numbers))
+    M = len(numbers)
+    numbers = deque(numbers)
+    indices = deque(range(M))
     N = len(numbers) - 1
-    for _ in range(n):
-        for i0 in range(len(numbers)):
-            # Ugh N**2 performance here. Could track this with another
-            # lookup table, but indexing would be a headache and this i
-            # fast enough,
-            for j, (i1, n) in enumerate(numbers):
-                if i0 == i1:
-                    break
+    for _ in range(repeats):
+        for i in range(M):
+            # Ugh N**2 performance here.
+            j = indices.index(i)
+            n = numbers[j]
             if n != 0:
                 numbers.rotate(-j)
                 x = numbers.popleft()
                 numbers.insert(n % N, x)
-    return [x for (_, x) in numbers]
+                indices.rotate(-j)
+                x = indices.popleft()
+                indices.insert(n % N, x)
+    return list(numbers)
 
 
 def coord_sum(numbers):
