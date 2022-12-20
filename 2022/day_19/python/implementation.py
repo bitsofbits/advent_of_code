@@ -109,8 +109,8 @@ class Factory:
             else:
                 costs = {k: v for (k, v) in costs.items() if k != "obsidian"}
 
-        best_possible_score = upper_bound(time_left, costs, robots, ore)
-        if best_possible_score < self.best_score:
+        local_best_score = upper_bound(time_left, costs, robots, ore)
+        if local_best_score < self.best_score:
             return -1
 
         key = (time_left, frozenset(robots.items()), frozenset(ore.items()))
