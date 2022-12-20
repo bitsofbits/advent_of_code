@@ -116,67 +116,84 @@ class Factory:
                 geodes += 1
             return geodes
 
-        if "ore" in costs and robots["ore"] == self.max_ore_costs:
-            # Remove ore from costs so we don't build ore robots any more
-            costs = {k: v for (k, v) in costs.items() if k != "ore"}
-        if "clay" in costs and robots["clay"] == costs["obsidian"]["clay"]:
-            # Remove clay from costs so we don't build clay robots any more
-            costs = {k: v for (k, v) in costs.items() if k != "clay"}
-        if robots["obsidian"] == costs["geode"]["obsidian"]:
-            if robots["ore"] >= costs["geode"]["ore"]:
-                # We build geode robots every time, so do that
-                return ore["geode"] + time_left * (robots["geode"] + time_left - 1) // 2
-            else:
-                # Remove obsidian from costs so we don't build any more.
-                costs = {k: v for (k, v) in costs.items() if k != "obsidian"}
-
-        # If our score is less than our estimated upper bound give up on this path.
-        local_best_score = upper_bound(time_left, costs, robots, ore)
-        if local_best_score < self.best_score:
-            return -1
-
         # Make a key based on the current state
         key = (time_left, frozenset(robots.items()), frozenset(ore.items()))
         if key in self.states:
             # We've seen this state before, so just return it's value
             return self.states[key]
 
+        # If our score is less than our estimated upper bound give up on this path.
+        local_best_score = upper_bound(time_left, costs, robots, ore)
+        if local_best_score < self.best_score:
+            self.states[key] = -1
+            return -1
+
+        # This set of optimization were inspired by a comment on redit.
+        if robots["obsidian"] == costs["geode"]["obsidian"]:
+            if robots["ore"] >= costs["geode"]["ore"]:
+                # We can build geode robots every time now, so do that
+                g = ore["geode"] + time_left * (robots["geode"] + time_left - 1) // 2
+                self.states[key] = g
+                self.best_score = max(self.best_score, g)
+                return g
+            elif "obsidian" in costs:
+                # Remove obsidian from costs so we don't build any more.
+                costs = {k: v for (k, v) in costs.items() if k != "obsidian"}
+        if "clay" in costs and robots["clay"] == costs["obsidian"]["clay"]:
+            # Remove clay from costs so we don't build clay robots any more
+            costs = {k: v for (k, v) in costs.items() if k != "clay"}
+        if "ore" in costs and robots["ore"] == self.max_ore_costs:
+            # Remove ore from costs so we don't build ore robots any more
+            costs = {k: v for (k, v) in costs.items() if k != "ore"}
+
         time_left -= 1
 
         # Later on, we check if we can build a robot are based on the current
         # ore so make a copy and update that based on the count of each robot.
-        updated_ore = ore.copy()
+        next_ore = ore.copy()
         for k, cnt in robots.items():
-            updated_ore[k] += cnt
+            next_ore[k] += cnt
 
-        # Try not building anything
-        geodes = self._fmg(time_left, costs, robots, updated_ore)
-        # Try building a robot
-        for robot_type, robot_costs in costs.items():
-            if all(v <= ore[k] for (k, v) in robot_costs.items()):
-                # We can build this type of robot, so let's try
-                # We need to copy any objects we are going to modify
-                # so we don't mess them up for other paths.
-                local_ore = updated_ore.copy()
-                for k, v in robot_costs.items():
-                    local_ore[k] -= v
-                local_robots = robots.copy()
-                local_robots[robot_type] += 1
-                geodes = max(
-                    geodes,
-                    self._fmg(
-                        time_left,
-                        costs,
-                        local_robots,
-                        local_ore,
-                    ),
-                )
+        # If we can build a geode robot, do that.
+        geodes = self._try_build("geode", time_left, ore, next_ore, robots, costs)
+        if geodes == -1:
+            # Otherwise, try not building anything
+            geodes = self._fmg(time_left, costs, robots, next_ore)
+            # And try building the other robots *except* geode
+            for robot_type in costs:
+                if robot_type != "geode":
+                    geodes = max(
+                        geodes,
+                        self._try_build(
+                            robot_type, time_left, ore, next_ore, robots, costs
+                        ),
+                    )
 
         # Store this state in case we see it again
         self.states[key] = geodes
         # Update the best score, so we can use it with upper_bound (above)
         self.best_score = max(self.best_score, geodes)
         return geodes
+
+    def _try_build(self, robot_type, time_left, ore, next_ore, robots, costs):
+        robot_cost = costs[robot_type]
+        if all(v <= ore[k] for (k, v) in robot_cost.items()):
+            # We can build this type of robot, so let's try!
+            # We need to copy any objects we are going to modify
+            # so we don't mess them up for other paths.
+            local_ore = next_ore.copy()
+            for k, v in robot_cost.items():
+                local_ore[k] -= v
+            local_robots = robots.copy()
+            local_robots[robot_type] += 1
+            return self._fmg(
+                time_left,
+                costs,
+                local_robots,
+                local_ore,
+            )
+        else:
+            return -1
 
 
 def find_max_geodes_24(blueprint):
