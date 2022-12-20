@@ -71,19 +71,15 @@ def _fmg(time_left, costs, robots, ore, states, scores, max_ore_costs):
             geodes += 1
         return geodes
 
-    copied = False
     if "ore" in costs and robots["ore"] == max_ore_costs:
-        if not copied:
-            costs = costs.copy()
-            copied = True
-        del costs["ore"]
+        costs = {k: v for (k, v) in costs.items() if k != "ore"}
     if "clay" in costs and robots["clay"] == costs["obsidian"]["clay"]:
-        if not copied:
-            costs = costs.copy()
-            copied = True
-        del costs["clay"]
+        costs = {k: v for (k, v) in costs.items() if k != "clay"}
     if robots["obsidian"] == costs["geode"]["obsidian"]:
-        return ore["geode"] + time_left * (robots["geode"] + time_left - 1) // 2
+        if robots["ore"] >= costs["geode"]["ore"]:
+            return ore["geode"] + time_left * (robots["geode"] + time_left - 1) // 2
+        else:
+            costs = {k: v for (k, v) in costs.items() if k != "obsidian"}
 
     best_possible_score = upper_bound(time_left, costs, robots, ore)
     if best_possible_score < scores[0]:
