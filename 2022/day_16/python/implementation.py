@@ -23,20 +23,6 @@ class Node(NamedTuple):
     dests: Tuple[(str, int)]
 
 
-def extract(text):
-    if text[-1] in ",:":
-        text = text[:-1]
-    text = text.split("=")[1]
-    return int(text)
-
-
-def condense(dests):
-    dmap = {k: inf for (k, _) in dests}
-    for k, cst in dests:
-        dmap[k] = min(cst, dmap[k])
-    return tuple(dmap.items())
-
-
 def parse_graph(text):
     """Load text graph into linked dicts
 
@@ -118,7 +104,7 @@ def simplify(nodes, preserve={"AA"}, preserve_nonzero=True):
     return nodes
 
 
-def _merge(d1, d2, k):
+def _merge_edges(d1, d2, k):
     dmap = dict(d1)
     for d, c in d2:
         if c < dmap.get(d, inf):
@@ -128,17 +114,21 @@ def _merge(d1, d2, k):
 
 
 def add_paths(nodes):
-    """
+    """Add shortest path between every node
+
+    There is a correct way to do this (Floyd-Warshall) but in this
+    case it's fast enough to just leverage simplify.
+
     >>> nodes = simplify(parse_graph(example_text), preserve={"AA"})
     >>> add_paths(nodes)
-    >>> for k in sorted(nodes): print(nodes[k])
-    Node(label='AA', flow=0, dests=[('BB', 1), ('CC', 2), ('DD', 1), ('EE', 2), ('HH', 5), ('JJ', 2)])
-    Node(label='BB', flow=13, dests=[('AA', 1), ('CC', 1), ('DD', 2), ('EE', 3), ('HH', 6), ('JJ', 3)])
-    Node(label='CC', flow=2, dests=[('AA', 2), ('BB', 1), ('DD', 1), ('EE', 2), ('HH', 5), ('JJ', 4)])
-    Node(label='DD', flow=20, dests=[('AA', 1), ('BB', 2), ('CC', 1), ('EE', 1), ('HH', 4), ('JJ', 3)])
-    Node(label='EE', flow=3, dests=[('AA', 2), ('BB', 3), ('CC', 2), ('DD', 1), ('HH', 3), ('JJ', 4)])
-    Node(label='HH', flow=22, dests=[('AA', 5), ('BB', 6), ('CC', 5), ('DD', 4), ('EE', 3), ('JJ', 7)])
-    Node(label='JJ', flow=21, dests=[('AA', 2), ('BB', 3), ('CC', 4), ('DD', 3), ('EE', 4), ('HH', 7)])
+    >>> for k in sorted(nodes): print(nodes[k])  # doctest: +ELLIPSIS
+    Node(label='AA', flow=0, dests=[('BB', 1), ('CC', 2), ('DD', 1), ('EE', 2), ('HH'...
+    Node(label='BB', flow=13, dests=[('AA', 1), ('CC', 1), ('DD', 2), ('EE', 3), ('HH...
+    Node(label='CC', flow=2, dests=[('AA', 2), ('BB', 1), ('DD', 1), ('EE', 2), ('HH'...
+    Node(label='DD', flow=20, dests=[('AA', 1), ('BB', 2), ('CC', 1), ('EE', 1), ('HH...
+    Node(label='EE', flow=3, dests=[('AA', 2), ('BB', 3), ('CC', 2), ('DD', 1), ('HH'...
+    Node(label='HH', flow=22, dests=[('AA', 5), ('BB', 6), ('CC', 5), ('DD', 4), ('EE...
+    Node(label='JJ', flow=21, dests=[('AA', 2), ('BB', 3), ('CC', 4), ('DD', 3), ('EE...
     """
     labels = list(nodes)
     for a in labels:
@@ -147,70 +137,83 @@ def add_paths(nodes):
                 continue
             simple = simplify(nodes, preserve={a, b}, preserve_nonzero=False)
             A = nodes[a]
-            A_dests = _merge(A.dests, simple[a].dests, b)
+            A_dests = _merge_edges(A.dests, simple[a].dests, b)
             nodes[a] = Node(label=a, flow=A.flow, dests=A_dests)
             B = nodes[b]
-            B_dests = _merge(B.dests, simple[b].dests, a)
+            B_dests = _merge_edges(B.dests, simple[b].dests, a)
             nodes[b] = Node(label=b, flow=B.flow, dests=B_dests)
 
 
-def setup_nodes(graph):
-    nodes = {}
-    # We don't need AA in the final graph, just as starting points, so remove now.
-    starts = graph["AA"].dests
-    for k, nd in graph.items():
-        if k == "AA":
-            continue
-        nodes[k] = (nd.flow, tuple((d, c) for (d, c) in nd.dests if d != "AA"))
-    opened = frozenset(k for (k, v) in graph.items() if v.flow == 0 and k != "AA")
-    return starts, nodes, opened
-
-
-def core(lbl, nodes, time_left, opened, score, score_map):
-    if time_left < 2 or len(opened) == len(nodes):
+def _traverse_from(lbl, nodes, time_left, score_map, score, opened):
+    if time_left < 2 or opened == 2 ** len(nodes) - 1:
         score_map[opened] = max(score, score_map.get(opened, 0))
         return score
 
     flow, dests = nodes[lbl]
-    lcl_score = score + flow * (time_left - 1) * (lbl not in opened)
+    lcl_score = score + flow * (time_left - 1) * (not lbl & opened)
 
-    opened = frozenset(opened | {lbl})
+    opened |= lbl
     score_map[opened] = max(lcl_score, score_map.get(opened, 0))
 
     result = lcl_score
     for (d, c) in dests:
-        if d not in opened and time_left - c > 2:
+        if not (d & opened) and time_left - c > 2:
             result = max(
                 result,
-                core(d, nodes, time_left - c - 1, opened, lcl_score, score_map),
+                _traverse_from(
+                    d, nodes, time_left - c - 1, score_map, lcl_score, opened
+                ),
             )
 
     return result
 
 
-def traverse_mp(nd, nodes, time_left, opened):
+def traverse_from(nd, nodes, time_left):
+    """Stub so that we can return score_map while using multiprocessing"""
     score_map = {}
-    released = core(nd, nodes, time_left, opened, 0, score_map)
+    released = _traverse_from(nd, nodes, time_left, score_map, score=0, opened=0)
     return released, score_map
 
 
+def setup_nodes(graph):
+    """Convert nodes to faster form for traversal"""
+    nodes = {}
+    # Convert keys to bit fields so comparisons are faster
+    keys = set()
+    for k in graph:
+        if k != "AA":
+            keys |= {k}
+    kmap = {k: 1 << i for (i, k) in enumerate(sorted(keys))}
+    # We don't need AA in the final graph, just as starting points, so remove now.
+    starts = [(kmap[d], c) for (d, c) in graph["AA"].dests]
+    # Use a simpler data structure
+    for k, nd in graph.items():
+        if k != "AA":
+            nodes[kmap[k]] = (
+                nd.flow,
+                tuple((kmap[d], c) for (d, c) in nd.dests if d != "AA"),
+            )
+    assert all(f > 0 for (f, _) in nodes.values())
+    return starts, nodes
+
+
 def traverse(graph, time_left, return_map=False):
-    """traverse graph within time_limit
+    """traverse caves within time_limit trying to maximize released steam
 
     >>> nodes = simplify(parse_graph(example_text))
     >>> add_paths(nodes)
     >>> traverse(nodes, 30)
     1651
-
-    2286
     """
-    starts, nodes, opened = setup_nodes(graph)
+    starts, nodes = setup_nodes(graph)
     score = 0
     score_map = {}
+    # This problem can be solved in parallel if we treat all the places
+    #  we can start from (all places reachable from AA) as separate problems
     with ProcessPoolExecutor() as exe:
         futures = []
         for nd, cost in starts:
-            f = exe.submit(traverse_mp, nd, nodes, time_left - cost, opened)
+            f = exe.submit(traverse_from, nd, nodes, time_left - cost)
             futures.append(f)
         for f in as_completed(futures):
             r, m = f.result()
@@ -218,12 +221,14 @@ def traverse(graph, time_left, return_map=False):
             for k, v in m.items():
                 score_map[k] = max(v, score_map.get(k, 0))
     if return_map:
+        # This is used to solve part 2.
         return score_map
     else:
         return score
 
 
 def int_key(kset, kmap):
+    """Convert and bit field key from a set based off of key"""
     key = 0
     for k in kset:
         key |= kmap[k]
@@ -231,21 +236,14 @@ def int_key(kset, kmap):
 
 
 def dual_traverse(graph, time_left):
-    """
+    """Find the best score for two agents traversing the caves at once
+
     >>> nodes = simplify(parse_graph(example_text))
     >>> add_paths(nodes)
     >>> dual_traverse(nodes, 26)
     1707
     """
     score_map = traverse(graph, time_left, return_map=True)
-    # Convert keys to bitfields so comparisons are faster
-    keys = set()
-    for k in score_map:
-        keys |= k
-    kmap = {k: 1 << i for (i, k) in enumerate(keys)}
-    score_map = {int_key(k, kmap): v for (k, v) in score_map.items()}
-    # Try all compatible combinations, meaning they didn't both turn
-    # on a valve
     best = 0
     keys = list(score_map)
     for i, k1 in enumerate(keys):
