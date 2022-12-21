@@ -159,7 +159,7 @@ def traverse_from(key, nodes, time_left):
         score += flow * t * (k & opened == 0)
         opened |= k
         score_map[opened] = max(score, score_map.get(opened, 0))
-        for (d, c) in dests:
+        for d, c in dests:
             if (d & opened == 0) and t - c > 0:
                 pending.append((d, t - c, score, opened))
     return score_map
