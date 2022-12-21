@@ -116,32 +116,39 @@ def _merge_edges(d1, d2, k):
 def add_paths(nodes):
     """Add shortest path between every node
 
-    There is a correct way to do this (Floyd-Warshall) but in this
-    case it's fast enough to just leverage simplify.
-
     >>> nodes = simplify(parse_graph(example_text), preserve={"AA"})
     >>> add_paths(nodes)
     >>> for k in sorted(nodes): print(nodes[k])  # doctest: +ELLIPSIS
-    Node(label='AA', flow=0, dests=[('BB', 1), ('CC', 2), ('DD', 1), ('EE', 2), ('HH'...
-    Node(label='BB', flow=13, dests=[('AA', 1), ('CC', 1), ('DD', 2), ('EE', 3), ('HH...
-    Node(label='CC', flow=2, dests=[('AA', 2), ('BB', 1), ('DD', 1), ('EE', 2), ('HH'...
-    Node(label='DD', flow=20, dests=[('AA', 1), ('BB', 2), ('CC', 1), ('EE', 1), ('HH...
-    Node(label='EE', flow=3, dests=[('AA', 2), ('BB', 3), ('CC', 2), ('DD', 1), ('HH'...
-    Node(label='HH', flow=22, dests=[('AA', 5), ('BB', 6), ('CC', 5), ('DD', 4), ('EE...
-    Node(label='JJ', flow=21, dests=[('AA', 2), ('BB', 3), ('CC', 4), ('DD', 3), ('EE...
+    Node(label='AA', flow=0, dests=(('BB', 1), ('CC', 2), ('DD', 1), ('EE', 2), ...
+    Node(label='BB', flow=13, dests=(('AA', 1), ('CC', 1), ('DD', 2), ('EE', 3),...
+    Node(label='CC', flow=2, dests=(('AA', 2), ('BB', 1), ('DD', 1), ('EE', 2), ...
+    Node(label='DD', flow=20, dests=(('AA', 1), ('BB', 2), ('CC', 1), ('EE', 1),...
+    Node(label='EE', flow=3, dests=(('AA', 2), ('BB', 3), ('CC', 2), ('DD', 1), ...
+    Node(label='HH', flow=22, dests=(('AA', 5), ('BB', 6), ('CC', 5), ('DD', 4),...
+    Node(label='JJ', flow=21, dests=(('AA', 2), ('BB', 3), ('CC', 4), ('DD', 3),...
     """
+    # Use the [Floyd–Warshall algorithm]
+    # (https://en.wikipedia.org/wiki/Floyd%E2%80%93Warshall_algorithm)
+    # Normally would use numpy, but I'm using vanilla python for everything
     labels = list(nodes)
-    for a in labels:
-        for b in labels:
-            if a <= b:
-                continue
-            simple = simplify(nodes, preserve={a, b}, preserve_nonzero=False)
-            A = nodes[a]
-            A_dests = _merge_edges(A.dests, simple[a].dests, b)
-            nodes[a] = Node(label=a, flow=A.flow, dests=A_dests)
-            B = nodes[b]
-            B_dests = _merge_edges(B.dests, simple[b].dests, a)
-            nodes[b] = Node(label=b, flow=B.flow, dests=B_dests)
+    n = len(labels)
+    cost = {(i, j): inf for i in range(n) for j in range(n)}
+    pmap = {k: i for (i, k) in enumerate(labels)}
+    for k, nd in nodes.items():
+        i = pmap[k]
+        for d, c in nd.dests:
+            j = pmap[d]
+            cost[i, j] = c
+        cost[i, i] = 0
+    for k in range(n):
+        for i in range(n):
+            for j in range(n):
+                cost[i, j] = min(cost[i, j], cost[i, k] + cost[k, j])
+
+    for k in labels:
+        i = pmap[k]
+        dests = tuple((d, cost[i, pmap[d]]) for d in labels if d != k)
+        nodes[k] = Node(label=k, flow=nodes[k].flow, dests=dests)
 
 
 def _traverse_from(lbl, nodes, time_left, score_map, score, opened):
@@ -227,14 +234,6 @@ def traverse(graph, time_left, return_map=False):
         return score
 
 
-def int_key(kset, kmap):
-    """Convert and bit field key from a set based off of key"""
-    key = 0
-    for k in kset:
-        key |= kmap[k]
-    return key
-
-
 def dual_traverse(graph, time_left):
     """Find the best score for two agents traversing the caves at once
 
@@ -244,14 +243,14 @@ def dual_traverse(graph, time_left):
     1707
     """
     score_map = traverse(graph, time_left, return_map=True)
-    keys = list(score_map)
+    pairs = list(score_map.items())
     best = 0
-    for i, k1 in enumerate(keys):
-        for k2 in keys[i + 1 :]:
-            if k1 & k2:
-                continue
-            best = max(best, score_map[k1] + score_map[k2])
-
+    # Could shave ~25% off run time of this function by using
+    # ProcessPoolExecutor here, but it's messy. (I tried it...)
+    for i, (k1, v1) in enumerate(pairs):
+        for k2, v2 in pairs[i + 1 :]:
+            if not k1 & k2:
+                best = max(best, v1 + v2)
     return best
 
 
