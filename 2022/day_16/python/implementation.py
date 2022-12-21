@@ -151,24 +151,28 @@ def add_paths(nodes):
         nodes[k] = Node(label=k, flow=nodes[k].flow, dests=dests)
 
 
-def _traverse_from(lbl, nodes, time_left, score_map, score, opened):
-    if time_left < 2 or opened == 2 ** len(nodes) - 1:
-        score_map[opened] = max(score, score_map.get(opened, 0))
+def _traverse_from(lbl, nodes, time_left, score_map, score, opened, ALL):
+    if time_left < 2:
         return score
 
+    time_left -= 1
+
     flow, dests = nodes[lbl]
-    lcl_score = score + flow * (time_left - 1) * (not lbl & opened)
+    lcl_score = score + flow * time_left * (lbl & opened == 0)
 
     opened |= lbl
     score_map[opened] = max(lcl_score, score_map.get(opened, 0))
 
+    if opened == ALL:
+        return lcl_score
+
     result = lcl_score
     for (d, c) in dests:
-        if not (d & opened) and time_left - c > 2:
+        if (d & opened == 0) and time_left - c > 1:
             result = max(
                 result,
                 _traverse_from(
-                    d, nodes, time_left - c - 1, score_map, lcl_score, opened
+                    d, nodes, time_left - c, score_map, lcl_score, opened, ALL
                 ),
             )
 
@@ -178,7 +182,10 @@ def _traverse_from(lbl, nodes, time_left, score_map, score, opened):
 def traverse_from(nd, nodes, time_left):
     """Stub so that we can return score_map while using multiprocessing"""
     score_map = {}
-    released = _traverse_from(nd, nodes, time_left, score_map, score=0, opened=0)
+    ALL = 2 ** len(nodes) - 1
+    released = _traverse_from(
+        nd, nodes, time_left, score_map, score=0, opened=0, ALL=ALL
+    )
     return released, score_map
 
 
@@ -252,7 +259,7 @@ def dual_traverse(graph, time_left):
                 # Since pairs are sorted by reverse score, the rest of k2 won't help
                 break
             if not k1 & k2:
-                best = max(best, v1 + v2)
+                best = max(best, total)
     return best
 
 
