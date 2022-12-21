@@ -244,12 +244,13 @@ def dual_traverse(graph, time_left):
     1707
     """
     score_map = traverse(graph, time_left, return_map=True)
-    best = 0
     keys = list(score_map)
+    best = 0
     for i, k1 in enumerate(keys):
         for k2 in keys[i + 1 :]:
-            if not k1 & k2:
-                best = max(best, score_map[k1] + score_map[k2])
+            if k1 & k2:
+                continue
+            best = max(best, score_map[k1] + score_map[k2])
 
     return best
 
