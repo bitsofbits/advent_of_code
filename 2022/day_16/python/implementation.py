@@ -239,14 +239,12 @@ def _dispatch(lbl, other_lbl_tl, nodes, time_left, opened, states):
     flow, dests = nodes[lbl]
     olbl, otl = other_lbl_tl
 
-    assert lbl not in opened, (lbl, opened)
-
     flow, dests = nodes[lbl]
     lcl_score = flow * (time_left - 1)
-    released = lcl_score
 
     propogated = False
     opened_copy = None
+    released = lcl_score
     for (d, c) in dests:
         if d in opened or d == olbl:
             continue
@@ -262,7 +260,7 @@ def _dispatch(lbl, other_lbl_tl, nodes, time_left, opened, states):
                 + lcl_score,
             )
     if not propogated and otl > 1:
-        # We need to allow the other agent to run
+        # Allow other agent to run
         lbl_tls = (other_lbl_tl, (lbl, -1))
         released = max(
             released, _dual_traverse(lbl_tls, nodes, otl, opened, states) + lcl_score
