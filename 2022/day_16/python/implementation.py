@@ -243,12 +243,14 @@ def dual_traverse(graph, time_left):
     1707
     """
     score_map = traverse(graph, time_left, return_map=True)
-    pairs = list(score_map.items())
+    pairs = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
     best = 0
-    # Could shave ~25% off run time of this function by using
-    # ProcessPoolExecutor here, but it's messy. (I tried it...)
     for i, (k1, v1) in enumerate(pairs):
         for k2, v2 in pairs[i + 1 :]:
+            total = v1 + v2
+            if total <= best:
+                # Since pairs are sorted by reverse score, the rest of k2 won't help
+                break
             if not k1 & k2:
                 best = max(best, v1 + v2)
     return best
