@@ -1,5 +1,5 @@
 import re
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from collections import deque
 from math import inf
 from typing import NamedTuple, Tuple
 
@@ -151,42 +151,28 @@ def add_paths(nodes):
         nodes[k] = Node(label=k, flow=nodes[k].flow, dests=dests)
 
 
-def _traverse_from(lbl, nodes, time_left, score_map, score, opened, ALL):
-    if time_left < 2:
-        return score
-
-    time_left -= 1
-
-    flow, dests = nodes[lbl]
-    lcl_score = score + flow * time_left * (lbl & opened == 0)
-
-    opened |= lbl
-    score_map[opened] = max(lcl_score, score_map.get(opened, 0))
-
-    if opened == ALL:
-        return lcl_score
-
-    result = lcl_score
-    for (d, c) in dests:
-        if (d & opened == 0) and time_left - c > 1:
-            result = max(
-                result,
-                _traverse_from(
-                    d, nodes, time_left - c, score_map, lcl_score, opened, ALL
-                ),
-            )
-
-    return result
-
-
-def traverse_from(nd, nodes, time_left):
-    """Stub so that we can return score_map while using multiprocessing"""
+def traverse_from(key, nodes, time_left):
     score_map = {}
     ALL = 2 ** len(nodes) - 1
-    released = _traverse_from(
-        nd, nodes, time_left, score_map, score=0, opened=0, ALL=ALL
-    )
-    return released, score_map
+    pending = deque([(key, time_left, 0, 0)])
+
+    while pending:
+        # pop gives depth first, popleft gives right first
+        k, t, score, opened = pending.pop()
+        if t < 2:
+            continue
+        t -= 1
+        flow, dests = nodes[k]
+        score += flow * t * (k & opened == 0)
+        opened |= k
+        score_map[opened] = max(score, score_map.get(opened, 0))
+        if opened == ALL:
+            continue
+        for (d, c) in dests:
+            if (d & opened == 0) and t - c > 1:
+                pending.append((d, t - c, score, opened))
+
+    return score_map
 
 
 def setup_nodes(graph):
@@ -220,25 +206,17 @@ def traverse(graph, time_left, return_map=False):
     1651
     """
     starts, nodes = setup_nodes(graph)
-    score = 0
     score_map = {}
-    # This problem can be solved in parallel if we treat all the places
-    #  we can start from (all places reachable from AA) as separate problems
-    with ProcessPoolExecutor() as exe:
-        futures = []
-        for nd, cost in starts:
-            f = exe.submit(traverse_from, nd, nodes, time_left - cost)
-            futures.append(f)
-        for f in as_completed(futures):
-            r, m = f.result()
-            score = max(score, r)
-            for k, v in m.items():
-                score_map[k] = max(v, score_map.get(k, 0))
+    for nd, cost in starts:
+        m = traverse_from(nd, nodes, time_left - cost)
+        for k, v in m.items():
+            score_map[k] = max(v, score_map.get(k, 0))
+
     if return_map:
         # This is used to solve part 2.
         return score_map
     else:
-        return score
+        return max(score_map.values())
 
 
 def dual_traverse(graph, time_left):
