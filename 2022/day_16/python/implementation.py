@@ -137,6 +137,15 @@ def simplify_AA(nodes):
     return s2
 
 
+def _merge(d1, d2, k):
+    dmap = dict(d1)
+    for d, c in d2:
+        if c < dmap.get(d, inf):
+            dmap[d] = c
+    assert set(dict(d2).keys()) == {k}, list(dmap.keys())
+    return sorted(dmap.items())
+
+
 def add_paths(nodes):
     """
     >>> nodes = simplify(parse_graph(example_text), preserve={"AA"})
@@ -157,11 +166,18 @@ def add_paths(nodes):
                 continue
             simple = simplify(nodes, preserve={a, b}, preserve_nonzero=False)
             A = nodes[a]
-            dests = tuple(sorted(set(A.dests) | set(simple[a].dests)))
+            dests = _merge(A.dests, simple[a].dests, b)
             nodes[a] = Node(label=a, flow=A.flow, dests=dests)
             B = nodes[b]
-            dests = tuple(sorted(set(B.dests) | set(simple[b].dests)))
+            dests = _merge(B.dests, simple[b].dests, a)
             nodes[b] = Node(label=b, flow=B.flow, dests=dests)
+    for a in labels:
+        assert len(nodes[a].dests) == len(labels) - 1, (a, b, len(labels), len(dests))
+        for d, c in nodes[a].dests:
+            import math
+
+            assert c > 0
+            assert not math.isinf(c)
 
 
 def setup_nodes(graph):
@@ -220,7 +236,6 @@ def traverse(graph, time_left):
 
 
 def _dispatch(lbl, other_lbl_tl, nodes, time_left, opened, states):
-    assert time_left >= 0
     flow, dests = nodes[lbl]
     olbl, otl = other_lbl_tl
 
@@ -231,56 +246,47 @@ def _dispatch(lbl, other_lbl_tl, nodes, time_left, opened, states):
     released = lcl_score
 
     propogated = False
-
-    opened = frozenset(opened | {lbl})
+    opened_copy = None
     for (d, c) in dests:
         if d in opened or d == olbl:
             continue
-        propogated = True
         dtl = time_left - 1 - c
-        if dtl > 0:
+        if dtl > 1:
+            if opened_copy is None:
+                opened_copy = frozenset(opened | {lbl})
+            propogated = True
             lbl_tls = ((d, dtl), other_lbl_tl)
             released = max(
                 released,
-                _dual_traverse(lbl_tls, nodes, max(otl, dtl), opened, states)
+                _dual_traverse(lbl_tls, nodes, max(otl, dtl), opened_copy, states)
                 + lcl_score,
             )
-    if not propogated and otl > 0:
+    if not propogated and otl > 1:
         # We need to allow the other agent to run
         lbl_tls = (other_lbl_tl, (lbl, -1))
-        released = _dual_traverse(lbl_tls, nodes, otl, opened, states) + lcl_score
+        released = max(
+            released, _dual_traverse(lbl_tls, nodes, otl, opened, states) + lcl_score
+        )
     return released
 
 
 def _dual_traverse(lbl_tls, nodes, time_left, opened, states):
-    if time_left == 0 or len(opened) == len(nodes):
+    if time_left <= 1 or len(opened) == len(nodes):
         return 0
 
     key = (time_left, lbl_tls, opened)
-
     if key in states:
         return states[key]
 
     (lbl1, t1), (lbl2, t2) = lbl_tls
-
-    assert lbl1 != lbl2
-
-    if t1 == t2 == time_left:
-        r1 = _dispatch(lbl1, (lbl2, t2), nodes, time_left, opened, states)
-        r2 = _dispatch(lbl2, (lbl1, t1), nodes, time_left, opened, states)
-        released = max(r1, r2)
-    elif t1 == time_left:
-        assert t1 > t2
+    if t1 == time_left:
         released = _dispatch(lbl1, (lbl2, t2), nodes, time_left, opened, states)
     elif t2 == time_left:
-        assert t2 > t1
         released = _dispatch(lbl2, (lbl1, t1), nodes, time_left, opened, states)
     else:
         raise RuntimeError("should not get here")
 
     states[key] = released
-    key2 = (time_left, lbl_tls[::-1], opened)
-    states[key2] = released
     return released
 
 
