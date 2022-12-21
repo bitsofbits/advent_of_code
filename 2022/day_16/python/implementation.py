@@ -1,5 +1,4 @@
 import re
-from collections import deque
 from math import inf
 from typing import NamedTuple, Tuple
 
@@ -153,47 +152,42 @@ def add_paths(nodes):
 
 def traverse_from(key, nodes, time_left):
     score_map = {}
-    ALL = 2 ** len(nodes) - 1
-    pending = deque([(key, time_left, 0, 0)])
-
+    pending = [(key, time_left, 0, 0)]
     while pending:
-        # pop gives depth first, popleft gives right first
         k, t, score, opened = pending.pop()
-        if t < 2:
-            continue
-        t -= 1
         flow, dests = nodes[k]
         score += flow * t * (k & opened == 0)
         opened |= k
         score_map[opened] = max(score, score_map.get(opened, 0))
-        if opened == ALL:
-            continue
         for (d, c) in dests:
-            if (d & opened == 0) and t - c > 1:
+            if (d & opened == 0) and t - c > 0:
                 pending.append((d, t - c, score, opened))
-
     return score_map
+
+
+def make_key_map(graph):
+    """Convert string keys to bit field key"""
+    keys = set()
+    for k in graph:
+        if k != "AA":
+            keys |= {k}
+    return {k: 1 << i for (i, k) in enumerate(sorted(keys))}
 
 
 def setup_nodes(graph):
     """Convert nodes to faster form for traversal"""
     nodes = {}
-    # Convert keys to bit fields so comparisons are faster
-    keys = set()
-    for k in graph:
-        if k != "AA":
-            keys |= {k}
-    kmap = {k: 1 << i for (i, k) in enumerate(sorted(keys))}
-    # We don't need AA in the final graph, just as starting points, so remove now.
-    starts = [(kmap[d], c) for (d, c) in graph["AA"].dests]
-    # Use a simpler data structure
+    kmap = make_key_map(graph)
+    # Use a simpler data structure: k : (flow, ((dest, cost), ...)
     for k, nd in graph.items():
         if k != "AA":
             nodes[kmap[k]] = (
                 nd.flow,
-                tuple((kmap[d], c) for (d, c) in nd.dests if d != "AA"),
+                # We always turn on a valve, so bump the cost here to save op later.
+                tuple((kmap[d], c + 1) for (d, c) in nd.dests if d != "AA"),
             )
-    assert all(f > 0 for (f, _) in nodes.values())
+    # We don't need AA in the final graph, just as starting points, so remove now.
+    starts = [(kmap[d], c + 1) for (d, c) in graph["AA"].dests]
     return starts, nodes
 
 
