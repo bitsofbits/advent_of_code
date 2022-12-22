@@ -166,7 +166,11 @@ def traverse_from(key, nodes, time_left):
 
 
 def make_key_map(graph):
-    """Convert string keys to bit field key"""
+    """Convert string keys to bit field key
+
+    Each item corresponds to a unique bit, so they an integer can
+    be used as a cheap set object.
+    """
     keys = set()
     for k in graph:
         if k != "AA":
@@ -178,7 +182,8 @@ def setup_nodes(graph):
     """Convert nodes to faster form for traversal"""
     nodes = {}
     kmap = make_key_map(graph)
-    # Use a simpler data structure: k : (flow, ((dest, cost), ...)
+    # Use a simpler data structure: k : (flow, ((d, cost), ...)
+    # Here k and d are bit field keys.
     for k, nd in graph.items():
         if k != "AA":
             nodes[kmap[k]] = (
