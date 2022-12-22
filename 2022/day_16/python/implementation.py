@@ -150,8 +150,7 @@ def add_paths(nodes):
         nodes[k] = Node(label=k, flow=nodes[k].flow, dests=dests)
 
 
-def traverse_from(key, nodes, time_left):
-    score_map = {}
+def traverse_from(key, nodes, time_left, score_map):
     pending = [(key, time_left, 0, 0)]
     while pending:
         k, t, score, opened = pending.pop()
@@ -160,9 +159,8 @@ def traverse_from(key, nodes, time_left):
         opened |= k
         score_map[opened] = max(score, score_map.get(opened, 0))
         for d, c in dests:
-            if (d & opened == 0) and t - c > 0:
+            if d & opened == 0 and t - c > 0:
                 pending.append((d, t - c, score, opened))
-    return score_map
 
 
 def make_key_map(graph):
@@ -207,10 +205,7 @@ def traverse(graph, time_left, return_map=False):
     starts, nodes = setup_nodes(graph)
     score_map = {}
     for nd, cost in starts:
-        m = traverse_from(nd, nodes, time_left - cost)
-        for k, v in m.items():
-            score_map[k] = max(v, score_map.get(k, 0))
-
+        traverse_from(nd, nodes, time_left - cost, score_map)
     if return_map:
         # This is used to solve part 2.
         return score_map
