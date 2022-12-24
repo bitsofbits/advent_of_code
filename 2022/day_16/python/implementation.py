@@ -165,6 +165,15 @@ def setup_nodes(graph):
     return kmap["AA"], nodes
 
 
+def condense_state_map(state_map, start):
+    # We remove AA from the keys because that break the comparisons in part 2.
+    score_map = {}
+    for (k, t), v in state_map.items():
+        k &= ~start
+        score_map[k] = max(v, score_map.get(k, 0))
+    return score_map
+
+
 def traverse(graph, time_left, return_map=False):
     """traverse caves within time_limit trying to maximize released steam
 
@@ -174,23 +183,24 @@ def traverse(graph, time_left, return_map=False):
     1651
     """
     start, nodes = setup_nodes(graph)
-    score_map = {}
+    state_map = {}
     pending = [(start, time_left, 0, start)]
     while pending:
         k, t, score, opened = pending.pop()
         flow, dests = nodes[k]
         score += flow * t * (k & opened == 0)
         opened |= k
-        score_map[opened] = max(score, score_map.get(opened, 0))
+        state = (opened, time_left)
+        if state_map.get(state, 0) > score:
+            continue
+        state_map[state] = score
         for d, c in dests:
             if d & opened == 0 and t - c > 0:
                 pending.append((d, t - c, score, opened))
     if return_map:
-        # This is used to solve part 2.
-        # We remove AA from the keys because that break the comparisons there.
-        return {k & ~start: v for (k, v) in score_map.items()}
+        return condense_state_map(state_map, start)
     else:
-        return max(score_map.values())
+        return max(state_map.values())
 
 
 def dual_traverse(graph, time_left):
