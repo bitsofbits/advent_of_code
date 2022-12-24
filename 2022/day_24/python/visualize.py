@@ -12,8 +12,12 @@ def draw(win, valley):
                     clr = 2
                 case "E":
                     clr = 4
+                case ".":
+                    c = " "
+                    clr = 2
                 case _:
                     clr = 2
+                    c = "·"
             win.addch(i, j, c, curses.color_pair(clr))
 
 
@@ -65,4 +69,4 @@ def visualize(delay):
 
 
 if __name__ == "__main__":
-    curses.wrapper(lambda x: visualize(delay=0.1))
+    curses.wrapper(lambda x: visualize(delay=0.03))
