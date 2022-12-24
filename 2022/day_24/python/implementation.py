@@ -72,7 +72,7 @@ class Valley:
             next_board = boards[t + 1]
             for mv in ">v<^W":
                 i1, j1 = self.move(i, j, mv)
-                if i1 >= 0 and (i1, j1) not in next_board:
+                if (i1, j1) not in next_board and 0 <= i1 <= self.max_i:
                     # Blizzards and walls are not allowed
                     new_state = (t + 1, i1, j1)
                     if new_state not in seen:
