@@ -1,3 +1,4 @@
+from bisect import insort_left
 from collections import defaultdict, deque
 
 example_text = """
@@ -58,26 +59,29 @@ class Valley:
         'vvW^>>v<^>Wvv>>>vv'
         """
         seen = set()
-        t0 = -1
-        next_board = self.board
-        queue = deque([(0, start, "")])
+        boards = {0: self.board}
+        dist = sum(abs(x - y) for (x, y) in zip(start, end))
+        queue = [(-dist, 0, start, "")]
         while queue:
-            t, (i, j), path = queue.popleft()
-            if t > t0:
-                self.board = next_board
-                next_board = self.find_next_blizzards(self.board)
-                t0 = t
+            _, t, (i, j), path = queue.pop()
             if (i, j) == end:
+                self.board = boards[t]
                 return path
+            if (t + 1) not in boards:
+                boards[t + 1] = self.find_next_blizzards(boards[t])
+            next_board = boards[t + 1]
             for mv in ">v<^W":
                 i1, j1 = self.move(i, j, mv)
                 if i1 >= 0 and (i1, j1) not in next_board:
                     # Blizzards and walls are not allowed
                     new_state = (t + 1, i1, j1)
                     if new_state not in seen:
-                        queue.append((t + 1, (i1, j1), path + mv))
+                        est_t = t + 1 + abs(i1 - end[0]) + abs(j1 - end[1])
+                        # Use the negative of estimated time so the sort is reversed
+                        # and we can use pop to retrieve the value at the beginning
+                        insort_left(queue, (-est_t, t + 1, (i1, j1), path + mv))
                         seen.add(new_state)
-        raise RuntimeError("cloud not traverse valley")
+        raise RuntimeError("coud not traverse valley")
 
     def simple_traverse(self):
         return self.traverse(self.start_loc, self.end_loc)

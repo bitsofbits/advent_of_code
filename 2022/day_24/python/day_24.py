@@ -13,8 +13,8 @@ if __name__ == "__main__":
     t0 = perf_counter()
     valley = Valley(text)
     path = valley.simple_traverse()
-    print(f"Part 1: : {len(path)} ({perf_counter() - t0:.0f}s)")
+    print(f"Part 1: : {len(path)} ({perf_counter() - t0:.1f}s)")
 
     valley = Valley(text)
     path = valley.snack_retrieval()
-    print(f"Part 2: : {len(path)} ({perf_counter() - t0:.0f}s)")
+    print(f"Part 2: : {len(path)} ({perf_counter() - t0:.1f}s)")
