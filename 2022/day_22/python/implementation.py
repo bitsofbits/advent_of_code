@@ -116,16 +116,22 @@ class Board:
         (2, 3, '^') -> (1, 2, '<')
         (2, 3, 'v') -> (1, 0, '>')
         """
-        # TODO: tidy up
         F = self.face_size
+        # find all of the faces
         faces = set()
         for r, c in self.board:
             R, C = ((x - 1) // F for x in (r, c))
             faces.add((R, C))
-        # The first uvec, center triple is (1, 0, 0), (0, 1, 0), (0, 0, 1)
         face2uvecs = {}
         R0, C0 = ((x - 1) // F for x in (r0, c0))
-        stack = [((R0, C0), (1, 0, 0), (0, 1, 0), (0, 0, 1))]
+        # define starting face to have an XY orientation with Z pointing out of the page
+        # note that this is u1, u2, face_center, where face center is the point in the
+        # center of the face. Cube is assumed to be 2x2 centered on 0 to make the math
+        # easy.
+        starting_face = ((R0, C0), (1, 0, 0), (0, 1, 0), (0, 0, 1))
+        # walk the faces of the cube and find a set of unit vector u1, u2 that are
+        # consistent with the starting face
+        stack = [starting_face]
         while stack:
             f, u1, u2, pt = stack.pop()
             face2uvecs[f] = (u1, u2, pt)
@@ -141,20 +147,26 @@ class Board:
         cntr2uvecs = {
             p: (R0, C0, u1, u2, p) for ((R0, C0), (u1, u2, p)) in face2uvecs.items()
         }
+        # Build a mapping of face edges to the adjacent edge and its orientation info
         self.edge_map = edge_map = {}
         for f0 in faces:
             R0, C0 = f0
             for d in dirs:
+                # get the unit vectors and position of first face
                 u1, u2, p0 = face2uvecs[f0]
+                # find unit vector and position of the adjacent cell if we left in `d`
                 v1, v2, p1 = self.rotate_uvecs(u1, u2, p0, d)
+                # find the existing cell at that position
                 R2, C2, w1, w2, p2 = cntr2uvecs[p1]
+                # spin v1, v2 until they match existing unit vectors
                 for i in range(0, 4):
                     if (w1, w2) == (v1, v2):
                         break
-                    w1, w2 = self.spin90(w1, w2, p2)
+                    v1, v2 = self.spin90(v1, v2, p2)
                 else:
                     raise ValueError
-                d2 = dirs[(dirs.index(d) - i) % 4]
+                # find the direction to enter the face from in this transition
+                d2 = dirs[(dirs.index(d) + i) % 4]
                 edge_map[R0, C0, d] = (R2, C2, d2)
         assert len(edge_map) == 24, len(edge_map)
 
@@ -180,7 +192,7 @@ class Board:
             case _:
                 raise ValueError(self.dir)
 
-    def _go_straight(self, n, cube_wrap=False):
+    def go_straight(self, n, cube_wrap=False):
         r0, c0 = self.loc
         d0 = d1 = self.dir
         for _ in range(n):
@@ -248,7 +260,7 @@ class Board:
                     self.dir = dirs[(dirs.index(self.dir) - 1) % 4]
                     self.board[self.loc] = self.dir
                 case int(n):
-                    self._go_straight(n, cube_wrap)
+                    self.go_straight(n, cube_wrap)
                 case _:
                     raise ValueError(c)
 
