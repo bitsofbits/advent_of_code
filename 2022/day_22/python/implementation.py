@@ -20,22 +20,6 @@ example_text = """
 """
 
 
-#   1
-# 124
-#   56
-
-#  12
-#  3
-# 45
-# 6
-
-"""
-1. Try to increment mod 4 * f (mod never seems to help) []
-2. Try looking left and right mod max_x if there (rotates direction 90 and shifts)
-3. try looking mod max_x and perp * 2 mod 4 * f rotates direction 180
-
-"""
-
 dirs = [">", "v", "<", "^"]
 
 
@@ -61,9 +45,6 @@ class Board:
         self.face_size = max_dim // 4
         assert self.max_r % self.face_size == self.max_c % self.face_size == 0
         assert len(board) / self.face_size**2 == 6
-        self.faces = set()
-        for r, c in board:
-            self.faces.add(self._rc_to_face(r, c, strict=False))
         self.loc = (1, self.min_c_by_r[1])
         self.dir = ">"
         self.board[self.loc] = self.dir
@@ -100,14 +81,6 @@ class Board:
                 raise ValueError(d)
         pt = -np.cross(np.cross(w, pt), pt)
         return tuple(u1), tuple(u2), tuple(pt)
-
-    def rotate_xy(self, u1, u2, x, y, d):
-        u1 = np.array(u1)
-        u2 = np.array(u2)
-        v1, v2, _ = (np.array(x) for x in self.rotate_uvecs(u1, u2, 0 * u1, d))
-        x = np.dot(x * u1, v1)
-        y = np.dot(y * u2, v2)
-        return x, y
 
     def spin90(self, u1, u2, pt):
         u1 = np.cross(pt, u1)
@@ -278,27 +251,6 @@ class Board:
                     self._go_straight(n, cube_wrap)
                 case _:
                     raise ValueError(c)
-
-    def _rc_to_face(self, r, c, strict=True):
-        R = (r - 1) // self.face_size + 1
-        C = (c - 1) // self.face_size + 1
-        if strict and (R, C) not in self.faces:
-            raise ValueError((r, c))
-        return R, C
-
-    def _transform(self, dr, dc, d0, d1):
-        F = self.face_size
-        turn = (dirs.index(d1) - dirs.index(d0)) % 4
-        match turn:
-            case 0:
-                dr, dc = dr, dc
-            case 1:
-                dr, dc = dc, F - dr + 1
-            case 2:
-                dr, dc = F - dr + 1, F - dc + 1
-            case 3:
-                dr, dc = F - dc + 1, dr
-        return dr, dc
 
     def cube_wrap(self, r, c, d):
         """
