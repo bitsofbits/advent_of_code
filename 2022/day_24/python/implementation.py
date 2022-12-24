@@ -48,7 +48,7 @@ class Valley:
                     board[i, j] = c
         return board
 
-    def traverse(self, start, end, initial_advance=True):
+    def traverse(self, start, end):
         """
         >>> v = Valley(example_text)
         >>> path = v.traverse(v.start_loc, v.end_loc)
@@ -57,26 +57,26 @@ class Valley:
         >>> path
         'vvW^>>v<^>Wvv>>>vv'
         """
-
-        state = (0, start, "")
         seen = set()
-        queue = deque([state])
-        t0 = -1 if initial_advance else 0
+        t0 = -1
+        next_board = self.board
+        queue = deque([(0, start, "")])
         while queue:
             t, (i, j), path = queue.popleft()
             if t > t0:
-                self.advance_blizzards()
+                self.board = next_board
+                next_board = self.find_next_blizzards(self.board)
                 t0 = t
             if (i, j) == end:
                 return path
-
             for mv in ">v<^W":
                 i1, j1 = self.move(i, j, mv)
-                if i1 >= 0 and (i1, j1) not in self.board:
+                if i1 >= 0 and (i1, j1) not in next_board:
                     # Blizzards and walls are not allowed
-                    if (t + 1, i1, j1) not in seen:
+                    new_state = (t + 1, i1, j1)
+                    if new_state not in seen:
                         queue.append((t + 1, (i1, j1), path + mv))
-                        seen.add((t + 1, i1, j1))
+                        seen.add(new_state)
         raise RuntimeError("cloud not traverse valley")
 
     def simple_traverse(self):
@@ -90,8 +90,8 @@ class Valley:
         54
         """
         p1 = self.traverse(self.start_loc, self.end_loc)
-        p2 = self.traverse(self.end_loc, self.start_loc, initial_advance=False)
-        p3 = self.traverse(self.start_loc, self.end_loc, initial_advance=False)
+        p2 = self.traverse(self.end_loc, self.start_loc)
+        p3 = self.traverse(self.start_loc, self.end_loc)
         return p1 + p2 + p3
 
     def move(self, i, j, c):
@@ -109,6 +109,19 @@ class Valley:
             case _:
                 raise ValueError(c)
         return i, j
+
+    def find_next_blizzards(self, board):
+        next_board = {}
+        for (i, j), state in board.items():
+            if state == "#":
+                next_board[i, j] = "#"
+                continue
+            for c in state:
+                i1, j1 = self.move(i, j, c)
+                i1 = (i1 - 1) % (self.max_i - 1) + 1
+                j1 = (j1 - 1) % (self.max_j - 1) + 1
+                next_board[i1, j1] = next_board.get((i1, j1), "") + c
+        return next_board
 
     def advance_blizzards(self):
         """
@@ -133,17 +146,7 @@ class Valley:
         #<....>#
         ######.#
         """
-        next_board = {}
-        for (i, j), state in self.board.items():
-            if state == "#":
-                next_board[i, j] = "#"
-                continue
-            for c in state:
-                i1, j1 = self.move(i, j, c)
-                i1 = (i1 - 1) % (self.max_i - 1) + 1
-                j1 = (j1 - 1) % (self.max_j - 1) + 1
-                next_board[i1, j1] = next_board.get((i1, j1), "") + c
-        self.board = next_board
+        self.board = self.find_next_blizzards(self.board)
 
     def __str__(self):
         text = ""
