@@ -60,10 +60,9 @@ class Valley:
         """
         seen = set()
         boards = {0: self.board}
-        dist = sum(abs(x - y) for (x, y) in zip(start, end))
-        queue = [(-dist, 0, start, "")]
+        queue = [(0, start, "")]
         while queue:
-            _, t, (i, j), path = queue.pop()
+            t, (i, j), path = queue.pop(0)
             if (i, j) == end:
                 self.board = boards[t]
                 return path
@@ -76,10 +75,7 @@ class Valley:
                     # Blizzards and walls are not allowed
                     new_state = (t + 1, i1, j1)
                     if new_state not in seen:
-                        est_t = t + 1 + abs(i1 - end[0]) + abs(j1 - end[1])
-                        # Use the negative of estimated time so the sort is reversed
-                        # and we can use pop to retrieve the value at the beginning
-                        insort_left(queue, (-est_t, t + 1, (i1, j1), path + mv))
+                        queue.append((t + 1, (i1, j1), path + mv))
                         seen.add(new_state)
         raise RuntimeError("coud not traverse valley")
 
