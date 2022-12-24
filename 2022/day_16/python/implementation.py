@@ -150,48 +150,19 @@ def add_paths(nodes):
         nodes[k] = Node(label=k, flow=nodes[k].flow, dests=dests)
 
 
-def traverse_from(key, nodes, time_left, score_map):
-    pending = [(key, time_left, 0, 0)]
-    while pending:
-        k, t, score, opened = pending.pop()
-        flow, dests = nodes[k]
-        score += flow * t * (k & opened == 0)
-        opened |= k
-        score_map[opened] = max(score, score_map.get(opened, 0))
-        for d, c in dests:
-            if d & opened == 0 and t - c > 0:
-                pending.append((d, t - c, score, opened))
-
-
-def make_key_map(graph):
-    """Convert string keys to bit field key
-
-    Each item corresponds to a unique bit, so they an integer can
-    be used as a cheap set object.
-    """
-    keys = set()
-    for k in graph:
-        if k != "AA":
-            keys |= {k}
-    return {k: 1 << i for (i, k) in enumerate(sorted(keys))}
-
-
 def setup_nodes(graph):
     """Convert nodes to faster form for traversal"""
     nodes = {}
-    kmap = make_key_map(graph)
+    kmap = {k: 1 << i for (i, k) in enumerate(sorted(set(graph)))}
     # Use a simpler data structure: k : (flow, ((d, cost), ...)
     # Here k and d are bit field keys.
     for k, nd in graph.items():
-        if k != "AA":
-            nodes[kmap[k]] = (
-                nd.flow,
-                # We always turn on a valve, so bump the cost here to save op later.
-                tuple((kmap[d], c + 1) for (d, c) in nd.dests if d != "AA"),
-            )
-    # We don't need AA in the final graph, just as starting points, so remove now.
-    starts = [(kmap[d], c + 1) for (d, c) in graph["AA"].dests]
-    return starts, nodes
+        nodes[kmap[k]] = (
+            nd.flow,
+            # We always turn on a valve, so bump the cost here to save op later.
+            tuple((kmap[d], c + 1) for (d, c) in nd.dests),
+        )
+    return kmap["AA"], nodes
 
 
 def traverse(graph, time_left, return_map=False):
@@ -202,13 +173,22 @@ def traverse(graph, time_left, return_map=False):
     >>> traverse(nodes, 30)
     1651
     """
-    starts, nodes = setup_nodes(graph)
+    start, nodes = setup_nodes(graph)
     score_map = {}
-    for nd, cost in starts:
-        traverse_from(nd, nodes, time_left - cost, score_map)
+    pending = [(start, time_left, 0, start)]
+    while pending:
+        k, t, score, opened = pending.pop()
+        flow, dests = nodes[k]
+        score += flow * t * (k & opened == 0)
+        opened |= k
+        score_map[opened] = max(score, score_map.get(opened, 0))
+        for d, c in dests:
+            if d & opened == 0 and t - c > 0:
+                pending.append((d, t - c, score, opened))
     if return_map:
         # This is used to solve part 2.
-        return score_map
+        # We remove AA from the keys because that break the comparisons there.
+        return {k & ~start: v for (k, v) in score_map.items()}
     else:
         return max(score_map.values())
 
