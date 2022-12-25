@@ -1,7 +1,5 @@
 from math import inf
 
-import numpy as np
-
 example_text = """
         ...#
         .#..
@@ -25,6 +23,17 @@ dirs = [">", "v", "<", "^"]
 
 def reverse(d):
     return dirs[(dirs.index(d) + 2) % 4]
+
+
+def cross(a, b):
+    return tuple(
+        a[(i + 1) % 3] * b[(i + 2) % 3] - a[(i + 2) % 3] * b[(i + 1) % 3]
+        for i in range(3)
+    )
+
+
+def negative(a):
+    return tuple(-x for x in a)
 
 
 class Board:
@@ -60,32 +69,24 @@ class Board:
         >>> Board.rotate_uvecs((0, 0, 1), (1, 0, 0), (0, -1, 0), "v")
         ((0, 0, 1), (0, 1, 0), (-1, 0, 0))
         """
-        u1 = np.array(u1)
-        u2 = np.array(u2)
-        u3 = np.cross(u1, u2)
-        pt = np.array(pt)
+        u3 = cross(u1, u2)
         match d:
             case ">":
                 w = u1
-                u1 = -u3
+                u1 = negative(u3)
             case "v":
-                w = -u2
+                w = negative(u2)
                 u2 = u3
             case "<":
-                w = -u1
+                w = negative(u1)
                 u1 = u3
             case "^":
                 w = u2
-                u2 = -u3
+                u2 = negative(u3)
             case _:
                 raise ValueError(d)
-        pt = -np.cross(np.cross(w, pt), pt)
-        return tuple(u1), tuple(u2), tuple(pt)
-
-    def spin90(self, u1, u2, pt):
-        u1 = np.cross(pt, u1)
-        u2 = np.cross(pt, u2)
-        return (tuple(u1), tuple(u2))
+        pt = cross(pt, cross(w, pt))
+        return u1, u2, pt
 
     def store_face_info(self, r0, c0):
         """
@@ -117,52 +118,50 @@ class Board:
         (2, 3, 'v') -> (1, 0, '>')
         """
         F = self.face_size
-        # find all of the faces
+        # find all of the faces in map (R, C) coordinates
         faces = set()
         for r, c in self.board:
             R, C = ((x - 1) // F for x in (r, c))
             faces.add((R, C))
+        # define starting face to have an XY orientation with Z pointing out of the page
+        # note that this is east, north, face_center, where face center is the point in
+        # the center of the face. Cube is assumed to be 2x2 centered on 0 to make the
+        # math easy.
         face2uvecs = {}
         R0, C0 = ((x - 1) // F for x in (r0, c0))
-        # define starting face to have an XY orientation with Z pointing out of the page
-        # note that this is u1, u2, face_center, where face center is the point in the
-        # center of the face. Cube is assumed to be 2x2 centered on 0 to make the math
-        # easy.
         starting_face = ((R0, C0), (1, 0, 0), (0, 1, 0), (0, 0, 1))
-        # walk the faces of the cube and find a set of unit vector u1, u2 that are
+        # walk the faces of the cube and find a set of unit vector east, north that are
         # consistent with the starting face
         stack = [starting_face]
         while stack:
-            f, u1, u2, pt = stack.pop()
-            face2uvecs[f] = (u1, u2, pt)
+            f, e1, n1, pt = stack.pop()
+            face2uvecs[f] = (e1, n1, pt)
             assert f in faces
             R, C = f
             for d in dirs:
                 f = self.naive_move(R, C, d)
                 if f in faces and f not in face2uvecs:
-                    v1, v2, pt2 = self.rotate_uvecs(u1, u2, pt, d)
+                    e2, n2, pt2 = self.rotate_uvecs(e1, n1, pt, d)
                     assert sum(abs(x) for x in pt2) == 1
-                    stack.append((f, v1, v2, pt2))
+                    stack.append((f, e2, n2, pt2))
         assert len(face2uvecs) == 6
-        cntr2uvecs = {
-            p: (R0, C0, u1, u2, p) for ((R0, C0), (u1, u2, p)) in face2uvecs.items()
-        }
+        cntr_map = {p: (R0, C0, n, p) for ((R0, C0), (e, n, p)) in face2uvecs.items()}
         # Build a mapping of face edges to the adjacent edge and its orientation info
         self.edge_map = edge_map = {}
         for f0 in faces:
             R0, C0 = f0
             for d in dirs:
                 # get the unit vectors and position of first face
-                u1, u2, p0 = face2uvecs[f0]
+                e0, n0, p0 = face2uvecs[f0]
                 # find unit vector and position of the adjacent cell if we left in `d`
-                v1, v2, p1 = self.rotate_uvecs(u1, u2, p0, d)
+                e1, n1, p1 = self.rotate_uvecs(e0, n0, p0, d)
                 # find the existing cell at that position
-                R2, C2, w1, w2, p2 = cntr2uvecs[p1]
+                R2, C2, n2, p2 = cntr_map[p1]
                 # spin v1, v2 until they match existing unit vectors
                 for i in range(0, 4):
-                    if (w1, w2) == (v1, v2):
+                    if n1 == n2:
                         break
-                    v1, v2 = self.spin90(v1, v2, p2)
+                    n1 = cross(p2, n1)
                 else:
                     raise ValueError
                 # find the direction to enter the face from in this transition
