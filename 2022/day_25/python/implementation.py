@@ -39,6 +39,8 @@ def SNAFU_to_decimal(line):
     906
     >>> SNAFU_to_decimal("2=0=")
     198
+    >>> SNAFU_to_decimal("20-1-0=-2=-2220=0011")
+    37503495108131
     """
     line = line.strip()
     value = 0
@@ -55,7 +57,32 @@ def reversed_base_5(n):
         n //= 5
 
 
+def decimal_to_SNAFU_balanced(x):
+    """
+    There's another way to do this based on the correspondence between
+    balanced and biased number sets. If we first convert to biased
+    base-5, we can then convert to balanced base-5 just by subtracting
+    2 from every digit. See:
+
+    http://homepage.divms.uiowa.edu/~jones/ternary/numbers.shtml
+
+    >>> decimal_to_SNAFU_balanced(37503495108131)
+    '20-1-0=-2=-2220=0011'
+    """
+    base_5 = list(reversed_base_5(x))[::-1]
+    n = len(base_5) + 1
+    bias = 5**n // 2
+    reversed_snafu = [x - 2 for x in reversed_base_5(x + bias)]
+    while reversed_snafu[-1] == 0:
+        reversed_snafu.pop()
+    return "".join(DECIMAL[x] for x in reversed_snafu[::-1])
+
+
 def decimal_to_SNAFU(n):
+    """
+    >>> decimal_to_SNAFU(37503495108131)
+    '20-1-0=-2=-2220=0011'
+    """
     digits = deque([0])
     for i, b in enumerate(reversed_base_5(n)):
         digits.appendleft(0)
