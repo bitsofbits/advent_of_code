@@ -24,11 +24,40 @@ SNAFU = {
     "2": 2,
 }
 
-
-DECIMAL = {v: k for (k, v) in SNAFU.items()}
-
+DECIMAL_TO_SNAFU = {v: k for (k, v) in SNAFU.items()}
 
 BASE5_TO_BALANCED = {0: [0, 0], 1: [0, 1], 2: [0, 2], 3: [1, -2], 4: [1, -1]}
+
+
+def decimal_to_SNAFU_balanced(n):
+    """
+    Convert from decimal to SNAFU using the correspondence between
+    balanced and biased number sets. If we first convert to biased
+    base-5, we can then convert to balanced base-5 just by subtracting
+    2 from every digit. See:
+
+    http://homepage.divms.uiowa.edu/~jones/ternary/numbers.shtml
+
+    >>> decimal_to_SNAFU_balanced(37503495108131)
+    '20-1-0=-2=-2220=0011'
+    >>> decimal_to_SNAFU_balanced(198)
+    '2=0='
+    >>> decimal_to_SNAFU_balanced(62)
+    '222'
+    >>> decimal_to_SNAFU_balanced(63)
+    '1==='
+    >>> decimal_to_SNAFU_balanced(0)
+    '0'
+    """
+    rng = 5
+    while rng // 2 < abs(n):
+        rng *= 5
+    n += rng // 2
+    balaced = []
+    while n:
+        balaced.append(n % 5)
+        n //= 5
+    return "".join("=-012"[x] for x in balaced[::-1])
 
 
 def SNAFU_to_decimal(line):
@@ -55,27 +84,6 @@ def reversed_base_5(n):
     while n:
         yield n % 5
         n //= 5
-
-
-def decimal_to_SNAFU_balanced(x):
-    """
-    There's another way to do this based on the correspondence between
-    balanced and biased number sets. If we first convert to biased
-    base-5, we can then convert to balanced base-5 just by subtracting
-    2 from every digit. See:
-
-    http://homepage.divms.uiowa.edu/~jones/ternary/numbers.shtml
-
-    >>> decimal_to_SNAFU_balanced(37503495108131)
-    '20-1-0=-2=-2220=0011'
-    """
-    base_5 = list(reversed_base_5(x))[::-1]
-    n = len(base_5) + 1
-    bias = 5**n // 2
-    reversed_snafu = [x - 2 for x in reversed_base_5(x + bias)]
-    while reversed_snafu[-1] == 0:
-        reversed_snafu.pop()
-    return "".join(DECIMAL[x] for x in reversed_snafu[::-1])
 
 
 def decimal_to_SNAFU(n):
@@ -107,7 +115,7 @@ def decimal_to_SNAFU(n):
         digits[0] = s1 + c
     while digits[0] == 0:
         digits.popleft()
-    return "".join(DECIMAL[x] for x in digits)
+    return "".join(DECIMAL_TO_SNAFU[x] for x in digits)
 
 
 def part_1(text):
