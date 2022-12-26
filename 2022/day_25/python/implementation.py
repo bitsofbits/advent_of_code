@@ -52,16 +52,26 @@ def _score(snafu, decimal):
     return (SNAFU_to_decimal(snafu) - decimal) ** 2
 
 
-def _mutate(x, mutations, score):
+def clip(x, low, high):
+    if x < low:
+        return low
+    if x > high:
+        return high
+    return x
+
+
+def _mutate(x, score):
     n = 1
-    while 5**n < sqrt(score):
+    while 5 ** (n + 1) // 2 < sqrt(score):
         n += 1
     x = list(x)
+    mutations = random.randrange(len(x) + 1) + 1
     for _ in range(mutations):
         if not x:
             x.append(random.choice(SNAFU_DIGITS))
             continue
-        match random.randrange(mutations + 3):
+        # Change length at most 10% of the time
+        match random.randrange(mutations + 18):
             case 0:
                 i = random.randrange(len(x) + 1)
                 x.insert(i, random.choice(SNAFU_DIGITS))
@@ -69,7 +79,8 @@ def _mutate(x, mutations, score):
                 i = random.randrange(len(x))
                 x.pop(i)
             case _:
-                i = min(max(int(len(x) - random.gauss(n, 1.0) - 1), 0), len(x) - 1)
+                focus = len(x) - n - 1
+                i = int(clip(random.gauss(focus, 1.0), 0, len(x) - 1))
                 x[i] = random.choice(SNAFU_DIGITS)
     return "".join(x)
 
@@ -82,7 +93,7 @@ def _normalize(x):
     return x
 
 
-def decimal_to_SNAFU_beam(n, top=10):
+def decimal_to_SNAFU_beam(n, candidates=10, offspring=10):
     """Find SNAFU using a beam search
 
     A cool idea I got from flowblok@tech.lgbt in
@@ -108,12 +119,12 @@ def decimal_to_SNAFU_beam(n, top=10):
     """
     beam = {"0": _score("0", n)}
     while True:
-        keys = sorted(beam, key=lambda x: beam[x])[:top]
+        keys = sorted(beam, key=lambda x: beam[x])[:candidates]
         if beam[keys[0]] == 0:
             return _normalize(keys[0])
         for k in keys:
-            for i in range(len(k)):
-                if (x := _mutate(k, i + 1, beam[k])) not in beam:
+            for i in range(offspring):
+                if (x := _mutate(k, beam[k])) not in beam:
                     beam[x] = _score(x, n)
 
 
