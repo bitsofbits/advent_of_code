@@ -1,4 +1,6 @@
+import random
 from collections import deque
+from math import sqrt
 
 example_text = """
 1=-0-2
@@ -24,9 +26,95 @@ SNAFU = {
     "2": 2,
 }
 
-DECIMAL_TO_SNAFU = {v: k for (k, v) in SNAFU.items()}
 
-BASE5_TO_BALANCED = {0: [0, 0], 1: [0, 1], 2: [0, 2], 3: [1, -2], 4: [1, -1]}
+def SNAFU_to_decimal(line):
+    """
+    >>> SNAFU_to_decimal("1=-0-2")
+    1747
+    >>> SNAFU_to_decimal("12111")
+    906
+    >>> SNAFU_to_decimal("2=0=")
+    198
+    >>> SNAFU_to_decimal("20-1-0=-2=-2220=0011")
+    37503495108131
+    """
+    line = line.strip()
+    value = 0
+    for i, c in enumerate(line[::-1]):
+        value += SNAFU[c] * 5**i
+    return value
+
+
+SNAFU_DIGITS = "=-012"
+
+
+def _score(snafu, decimal):
+    return (SNAFU_to_decimal(snafu) - decimal) ** 2
+
+
+def _mutate(x, mutations, score):
+    n = 1
+    while 5**n < sqrt(score):
+        n += 1
+    x = list(x)
+    for _ in range(mutations):
+        if not x:
+            x.append(random.choice(SNAFU_DIGITS))
+            continue
+        match random.randrange(mutations + 3):
+            case 0:
+                i = random.randrange(len(x) + 1)
+                x.insert(i, random.choice(SNAFU_DIGITS))
+            case 1:
+                i = random.randrange(len(x))
+                x.pop(i)
+            case _:
+                i = min(max(int(len(x) - random.gauss(n, 1.0) - 1), 0), len(x) - 1)
+                x[i] = random.choice(SNAFU_DIGITS)
+    return "".join(x)
+
+
+def _normalize(x):
+    while x[:1] == "0":
+        x = x[1:]
+    if x == "":
+        x = "0"
+    return x
+
+
+def decimal_to_SNAFU_beam(n, top=10):
+    """Find SNAFU using a beam search
+
+    A cool idea I got from flowblok@tech.lgbt in
+    https://tech.lgbt/@flowblok/109578526233453752
+
+    I tweaked this to focus on the regions that correspond
+    to the current score (see _mutate). I also do more
+    mutations on longer sequences. These two modifications
+    sped it up a lot for my case. Still a lot slower
+    than computing it deterministically, but perhaps
+    more generally useful.
+
+    >>> decimal_to_SNAFU_beam(37503495108131)
+    '20-1-0=-2=-2220=0011'
+    >>> decimal_to_SNAFU_beam(198)
+    '2=0='
+    >>> decimal_to_SNAFU_beam(62)
+    '222'
+    >>> decimal_to_SNAFU_beam(63)
+    '1==='
+    >>> decimal_to_SNAFU_beam(0)
+    '0'
+    """
+    beam = {"0": _score("0", n)}
+    while True:
+        keys = sorted(beam, key=lambda x: beam[x])[:top]
+        if beam[keys[0]] == 0:
+            return _normalize(keys[0])
+        for k in keys:
+            for i in range(len(k)):
+                if (x := _mutate(k, i + 1, beam[k])) not in beam:
+                    beam[x] = _score(x, n)
 
 
 def decimal_to_SNAFU_balanced(n):
@@ -53,29 +141,10 @@ def decimal_to_SNAFU_balanced(n):
     while rng // 2 < abs(n):
         rng *= 5
     n += rng // 2
-    balaced = []
-    while n:
+    balaced = [n % 5]
+    while n := n // 5:
         balaced.append(n % 5)
-        n //= 5
     return "".join("=-012"[x] for x in balaced[::-1])
-
-
-def SNAFU_to_decimal(line):
-    """
-    >>> SNAFU_to_decimal("1=-0-2")
-    1747
-    >>> SNAFU_to_decimal("12111")
-    906
-    >>> SNAFU_to_decimal("2=0=")
-    198
-    >>> SNAFU_to_decimal("20-1-0=-2=-2220=0011")
-    37503495108131
-    """
-    line = line.strip()
-    value = 0
-    for i, c in enumerate(line[::-1]):
-        value += SNAFU[c] * 5**i
-    return value
 
 
 def reversed_base_5(n):
@@ -86,32 +155,28 @@ def reversed_base_5(n):
         n //= 5
 
 
+BASE5_TO_BALANCED = {0: [0, 0], 1: [0, 1], 2: [0, 2], 3: [1, -2], 4: [1, -1]}
+DECIMAL_TO_SNAFU = {v: k for (k, v) in SNAFU.items()}
+
+
 def decimal_to_SNAFU(n):
     """
     >>> decimal_to_SNAFU(37503495108131)
     '20-1-0=-2=-2220=0011'
     """
     digits = deque([0])
-    for i, b in enumerate(reversed_base_5(n)):
+    for b5 in reversed_base_5(n):
         digits.appendleft(0)
-        s1, s0 = BASE5_TO_BALANCED[b]
+        s1, s0 = BASE5_TO_BALANCED[b5]
         d = digits[1] + s0
         match d:
-            case 4:
+            case 3 | 4:
                 c = 1
-                d = -1
-            case 3:
-                c = 1
-                d = -2
-            case -3:
+            case -3 | -4:
                 c = -1
-                d = 2
-            case -4:
-                c = -1
-                d = 1
             case _:
                 c = 0
-        digits[1] = d
+        digits[1] = d - c * 5
         digits[0] = s1 + c
     while digits[0] == 0:
         digits.popleft()
