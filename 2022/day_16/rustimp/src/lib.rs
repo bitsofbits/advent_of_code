@@ -73,7 +73,7 @@ impl Node<usize> {
 
 pub fn add_all_paths(mut nodes: HashMap<usize, Node<usize>>) -> HashMap<usize, Node<usize>> {
     let keys: Vec<usize> = nodes.clone().keys().map(|k| *k).collect();
-    let large_value = (keys.iter().max().unwrap() + 1) as isize;
+    let large_value = (keys.iter().max().unwrap_or(&0) + 1) as isize;
     // let n = keys.len();
     let mut cost: HashMap<(usize, usize), isize> = HashMap::new();
     for i in &keys {
@@ -100,8 +100,12 @@ pub fn add_all_paths(mut nodes: HashMap<usize, Node<usize>>) -> HashMap<usize, N
         }
     }
     for k in &keys {
-        let dests: Vec<(usize, isize)> =
-            Vec::from_iter(keys.clone().iter().map(|d| (*d, cost[&(*k, *d)])));
+        let dests: Vec<(usize, isize)> = Vec::from_iter(
+            keys.clone()
+                .iter()
+                .filter(|d| d != &k)
+                .map(|d| (*d, cost[&(*k, *d)])),
+        );
         let flow = nodes[k].flow;
         nodes.insert(*k, Node { flow, dests });
     }
@@ -128,7 +132,7 @@ pub fn drop_nodes_with_zero_flow(
             let dests = Vec::from_iter(
                 nd.dests
                     .iter()
-                    .filter(|(k, _)| preserve.contains(k))
+                    .filter(|(d, _)| (d != k) && preserve.contains(d))
                     .map(|(k, v)| (*k, *v)),
             );
             nodes.insert(*k, Node { flow, dests });
@@ -150,7 +154,12 @@ fn setup_fast_graph(
         let nd = &nodes[k];
         let flow = nd.flow;
         // We always turn on valves that we visit, so just incorporate that into the cost now
-        let dests = Vec::from_iter(nd.dests.iter().map(|(d, c)| (kmap[&*d], c + 1)));
+        let dests = Vec::from_iter(
+            nd.dests
+                .iter()
+                .filter(|(d, _)| d != root)
+                .map(|(d, c)| (kmap[&*d], c + 1)),
+        );
         let new_nd = Node { flow, dests };
         new.push(new_nd);
     }
@@ -163,24 +172,21 @@ fn general_traverse(
     time_left: &isize,
 ) -> (HashMap<(usize, isize), isize>, usize) {
     let (nodes, root) = setup_fast_graph(graph, root);
-    let mut state_map: HashMap<(usize, isize), isize> = HashMap::new();
-    let mut pending = vec![(&root, *time_left, 0, 1 << root)];
-    while !&pending.is_empty() {
-        let (k, t, mut score, mut opened) = pending.pop().unwrap();
-        let nd = &nodes[*k];
-        score += nd.flow * t;
-        opened |= 1 << k;
+    let mut state_map = HashMap::new();
+    let mut pending = vec![(root, *time_left, 0, 0)];
+    while let Some((k, t, score, opened)) = pending.pop() {
+        let nd = &nodes[k];
+        let score = score + nd.flow * t;
+        let opened = opened | 1 << k;
         let state = (opened, t);
-        if let Some(best_score) = state_map.get(&state) {
-            if best_score >= &score {
-                continue;
-            }
+        if state_map.get(&state).unwrap_or(&0) > &score {
+            continue;
         }
         state_map.insert(state, score);
         for (d, c) in &nd.dests {
             let next_t = &t - c;
-            if next_t > 0 && (opened & (1 << d)) == 0 {
-                pending.push((d, next_t, score, opened));
+            if (next_t > 0) && ((opened & (1 << d)) == 0) {
+                pending.push((*d, next_t, score, opened));
             }
         }
     }
@@ -189,13 +195,13 @@ fn general_traverse(
 
 pub fn traverse(graph: &HashMap<usize, Node<usize>>, root: &usize) -> isize {
     let (state_map, _) = general_traverse(graph, root, &30);
-    state_map.iter().map(|(_, v)| *v).max().unwrap()
+    state_map.iter().map(|(_, v)| *v).max().unwrap_or(0)
 }
 
 pub fn dual_traverse(graph: &HashMap<usize, Node<usize>>, root: &usize) -> isize {
     let (state_map, root) = general_traverse(graph, root, &26);
     let mut score_map: HashMap<usize, isize> = HashMap::new();
-    for ((k, _), mut v) in state_map {
+    for ((k, _t), mut v) in state_map {
         let k = k & !(1 << root);
         if score_map.contains_key(&k) {
             v = v.max(score_map[&k]);
@@ -251,8 +257,15 @@ fn test_parse_node() {
 #[test]
 fn test_parse_graph() {
     let nodes = Node::parse_graph(EXAMPLE_TEXT);
+    assert_eq!(nodes.len(), 10);
     let aa = &nodes["AA"];
     assert_eq!(aa.flow, 0);
+    for (_k, nd) in &nodes {
+        let mut dests = nd.dests.clone();
+        dests.sort();
+        dests.dedup_by_key(|(d, _c)| d.to_string());
+        assert!(nd.dests.len() == dests.len());
+    }
 }
 
 #[test]
@@ -262,4 +275,10 @@ fn test_add_all_paths() {
     nodes = add_all_paths(nodes);
     nodes = drop_nodes_with_zero_flow(nodes, root);
     assert_eq!(nodes.len(), 7);
+    for (_k, nd) in &nodes {
+        let mut dests = nd.dests.clone();
+        dests.sort();
+        dests.dedup_by_key(|(d, _c)| d.to_string());
+        assert!(nd.dests.len() == dests.len());
+    }
 }
