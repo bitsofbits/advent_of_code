@@ -165,16 +165,7 @@ def setup_nodes(graph):
     return kmap["AA"], nodes
 
 
-def condense_state_map(state_map, start):
-    # We remove AA from the keys because that break the comparisons in part 2.
-    score_map = {}
-    for (k, t), v in state_map.items():
-        k &= ~start
-        score_map[k] = max(v, score_map.get(k, 0))
-    return score_map
-
-
-def traverse(graph, time_left, return_map=False):
+def general_traverse(graph, time_left):
     """traverse caves within time_limit trying to maximize released steam
 
     >>> nodes = simplify(parse_graph(example_text))
@@ -190,17 +181,35 @@ def traverse(graph, time_left, return_map=False):
         flow, dests = nodes[k]
         score += flow * t * (k & opened == 0)
         opened |= k
-        state = (opened, time_left)
+        state = (opened, t)
         if state_map.get(state, 0) > score:
             continue
         state_map[state] = score
         for d, c in dests:
             if d & opened == 0 and t - c > 0:
                 pending.append((d, t - c, score, opened))
-    if return_map:
-        return condense_state_map(state_map, start)
-    else:
-        return max(state_map.values())
+    return start, state_map
+
+
+def traverse(graph, time_left):
+    """traverse caves within time_limit trying to maximize released steam
+
+    >>> nodes = simplify(parse_graph(example_text))
+    >>> add_paths(nodes)
+    >>> traverse(nodes, 30)
+    1651
+    """
+    _, state_map = general_traverse(graph, time_left)
+    return max(state_map.values())
+
+
+def condense_state_map(state_map, start):
+    # We remove AA from the keys because that break the comparisons in part 2.
+    score_map = {}
+    for (k, t), v in state_map.items():
+        k &= ~start
+        score_map[k] = max(v, score_map.get(k, 0))
+    return score_map
 
 
 def dual_traverse(graph, time_left):
@@ -211,7 +220,8 @@ def dual_traverse(graph, time_left):
     >>> dual_traverse(nodes, 26)
     1707
     """
-    score_map = traverse(graph, time_left, return_map=True)
+    start, state_map = general_traverse(graph, time_left)
+    score_map = condense_state_map(state_map, start)
     pairs = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
     best = 0
     for i, (k1, v1) in enumerate(pairs):
