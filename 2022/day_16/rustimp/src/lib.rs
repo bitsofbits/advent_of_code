@@ -20,8 +20,8 @@ Valve JJ has flow rate=21; tunnel leads to valve II
 
 #[derive(Clone)]
 pub struct Node<T> {
-    flow: u32,
-    dests: HashMap<T, u32>,
+    flow: isize,
+    dests: HashMap<T, isize>,
 }
 
 const NODE_RE: Lazy<Regex> = Lazy::new(|| {
@@ -32,7 +32,7 @@ impl Node<String> {
     fn parse_node(line: &str) -> (String, Node<String>) {
         let caps = NODE_RE.captures(line).unwrap();
         let lbl = caps.get(1).unwrap().as_str();
-        let flow = caps.get(2).unwrap().as_str().parse::<u32>().unwrap();
+        let flow = caps.get(2).unwrap().as_str().parse::<isize>().unwrap();
         let dests_text = caps.get(3).unwrap().as_str();
         let mut dests = HashMap::new();
         for d in dests_text.split(",") {
@@ -56,10 +56,10 @@ impl Node<usize> {
         keys.sort();
         let key_map: HashMap<String, usize> =
             HashMap::from_iter(keys.iter().enumerate().map(|(k, v)| (v.to_string(), k)));
-        let mut u32_nodes = HashMap::new();
+        let mut isize_nodes = HashMap::new();
         for (k, nd) in nodes {
             let dests = nd.dests.iter().map(|(d, c)| (key_map[d], *c)).collect();
-            u32_nodes.insert(
+            isize_nodes.insert(
                 key_map[&k],
                 Node {
                     flow: nd.flow,
@@ -67,15 +67,15 @@ impl Node<usize> {
                 },
             );
         }
-        (u32_nodes, key_map[root])
+        (isize_nodes, key_map[root])
     }
 }
 
 pub fn add_all_paths(mut nodes: HashMap<usize, Node<usize>>) -> HashMap<usize, Node<usize>> {
     let keys: Vec<usize> = nodes.clone().keys().map(|k| *k).collect();
-    let large_value = (keys.iter().max().unwrap() + 1) as u32;
+    let large_value = (keys.iter().max().unwrap() + 1) as isize;
     // let n = keys.len();
-    let mut cost: HashMap<(usize, usize), u32> = HashMap::new();
+    let mut cost: HashMap<(usize, usize), isize> = HashMap::new();
     for i in &keys {
         for j in &keys {
             cost.insert((*i, *j), large_value);
@@ -100,7 +100,7 @@ pub fn add_all_paths(mut nodes: HashMap<usize, Node<usize>>) -> HashMap<usize, N
         }
     }
     for k in &keys {
-        let dests: HashMap<usize, u32> =
+        let dests: HashMap<usize, isize> =
             HashMap::from_iter(keys.clone().iter().map(|d| (*d, cost[&(*k, *d)])));
         let flow = nodes[k].flow;
         nodes.insert(*k, Node { flow, dests });
@@ -144,6 +144,7 @@ fn setup_fast_graph(
     let mut new = HashMap::new();
     for (k, nd) in nodes {
         let flow = nd.flow;
+        // We always turn on valves that we visit, so just incorporate that into the cost now
         let dests = HashMap::from_iter(nd.dests.iter().map(|(d, c)| (((1 as usize) << d), c + 1)));
         let new_nd = Node { flow, dests };
         new.insert(((1 as usize) << k) as usize, new_nd);
@@ -154,17 +155,15 @@ fn setup_fast_graph(
 fn general_traverse(
     graph: &HashMap<usize, Node<usize>>,
     root: &usize,
-    time_left: &u32,
-) -> (HashMap<(usize, u32), u32>, usize) {
+    time_left: &isize,
+) -> (HashMap<(usize, isize), isize>, usize) {
     let (nodes, root) = setup_fast_graph(graph, root);
-    let mut state_map: HashMap<(usize, u32), u32> = HashMap::new();
-    let mut pending = vec![(root, *time_left, 0, root)];
+    let mut state_map: HashMap<(usize, isize), isize> = HashMap::new();
+    let mut pending = vec![(&root, *time_left, 0, root)];
     while !&pending.is_empty() {
         let (k, t, mut score, mut opened) = pending.pop().unwrap();
         let nd = &nodes[&k];
-        if k & opened == 0 {
-            score += nd.flow * t;
-        }
+        score += nd.flow * t;
         opened |= k;
         let state = (opened, t);
         if let Some(best_score) = state_map.get(&state) {
@@ -174,22 +173,23 @@ fn general_traverse(
         }
         state_map.insert(state, score);
         for (d, c) in &nd.dests {
-            if (d & opened) == 0 && t as i64 - *c as i64 > 0 {
-                pending.push((*d, (t - c), score, opened));
+            let next_t = &t - c;
+            if next_t > 0 && (d & opened) == 0 {
+                pending.push((d, next_t, score, opened));
             }
         }
     }
     (state_map, root)
 }
 
-pub fn traverse(graph: &HashMap<usize, Node<usize>>, root: &usize) -> u32 {
+pub fn traverse(graph: &HashMap<usize, Node<usize>>, root: &usize) -> isize {
     let (state_map, _) = general_traverse(graph, root, &30);
     state_map.iter().map(|(_, v)| *v).max().unwrap()
 }
 
-pub fn dual_traverse(graph: &HashMap<usize, Node<usize>>, root: &usize) -> u32 {
+pub fn dual_traverse(graph: &HashMap<usize, Node<usize>>, root: &usize) -> isize {
     let (state_map, root) = general_traverse(graph, root, &26);
-    let mut score_map: HashMap<usize, u32> = HashMap::new();
+    let mut score_map: HashMap<usize, isize> = HashMap::new();
     for ((k, _), mut v) in state_map {
         let k = k & !root;
         if score_map.contains_key(&k) {
@@ -197,7 +197,7 @@ pub fn dual_traverse(graph: &HashMap<usize, Node<usize>>, root: &usize) -> u32 {
         }
         score_map.insert(k, v);
     }
-    let mut pairs: Vec<(usize, u32)> = score_map.iter().map(|(k, v)| (*k, *v)).collect();
+    let mut pairs: Vec<(usize, isize)> = score_map.iter().map(|(k, v)| (*k, *v)).collect();
     pairs.sort_by(|(_, v1), (_, v2)| v2.cmp(&v1));
     let mut best = 0;
     for (i, (k1, v1)) in pairs.iter().enumerate() {
