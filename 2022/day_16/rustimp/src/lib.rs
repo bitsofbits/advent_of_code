@@ -167,8 +167,10 @@ fn general_traverse(
         }
         opened |= k;
         let state = (opened, t);
-        if state_map.contains_key(&state) && state_map[&state] >= score {
-            continue;
+        if let Some(best_score) = state_map.get(&state) {
+            if best_score >= &score {
+                continue;
+            }
         }
         state_map.insert(state, score);
         for (d, c) in &nd.dests {
