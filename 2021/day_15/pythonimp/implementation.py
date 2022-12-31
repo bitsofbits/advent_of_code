@@ -28,14 +28,15 @@ def parse(text):
 
 
 def traverse(board):
-    end = (max(i for (i, j) in board), max(j for (i, j) in board))
-    H, W = (x + 1 for x in end)
+    H = max(i for (i, j) in board) + 1
+    W = max(j for (i, j) in board) + 1
     N = H * W
 
     B = [board[i, j] for i in range(H) for j in range(W)]
 
-    heap = [(sum(end), 0, 0)]
-    scores = [9 * sum(end)] * N
+    max_dist = (H - 1) + (W - 1)
+    scores = [9 * max_dist] * N
+    heap = [(max_dist, 0, 0)]
     while heap:
         score, i0, j0 = heappop(heap)
         for di, dj in ((1, 0), (0, 1), (-1, 0), (0, -1)):
