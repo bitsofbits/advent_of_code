@@ -3,6 +3,12 @@ EXAMPLE_TEXT = """
 """
 
 
+def parse(text):
+    """
+    >>> parse(EXAMPLE_TEXT)
+    """
+
+
 def part_1(text):
     """
     >>> part_1(EXAMPLE_TEXT)
