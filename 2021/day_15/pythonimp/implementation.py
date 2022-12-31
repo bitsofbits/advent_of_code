@@ -1,6 +1,4 @@
-from collections import deque
-from functools import cache
-from math import inf
+from heapq import heappop, heappush
 
 EXAMPLE_TEXT = """
 1163751742
@@ -29,67 +27,26 @@ def parse(text):
     return board
 
 
-# class ScoreEstimator:
-#     """
-#     >>> board = parse(EXAMPLE_TEXT)
-#     >>> scorer = ScoreEstimator(board)
-#     >>> scorer.pessimistic(9, 9)
-#     0
-#     >>> scorer.pessimistic(0, 0)
-#     """
-
-#     def __init__(self, board):
-#         self.board = board
-#         self.end = (max(i for (i, j) in board), max(j for (i, j) in board))
-
-#     @cache
-#     def pessimistic(self, i, j):
-#         score = 0
-#         i1, j1 = self.end
-#         while (i, j) != self.end:
-#             di, dj = (i1 - i), (j1 - j)
-#             if di > dj:
-#                 i += 1
-#             else:
-#                 j += 1
-#             if (i)
-#             score += self.board[i, j]
-#         return score
-
-
 def traverse(board):
-    start = (0, 0)
     end = (max(i for (i, j) in board), max(j for (i, j) in board))
+    H, W = (x + 1 for x in end)
+    N = H * W
 
-    # scorer = ScoreEstimator(board)
+    B = [board[i, j] for i in range(H) for j in range(W)]
 
-    def optimistic_score(s, i, j):
-        return s + ((end[0] - i) + (end[1] - j))
+    heap = [(sum(end), 0, 0)]
+    scores = [9 * sum(end)] * N
+    while heap:
+        score, i0, j0 = heappop(heap)
+        for di, dj in ((1, 0), (0, 1), (-1, 0), (0, -1)):
+            if 0 <= (i := i0 + di) < H and 0 <= (j := j0 + dj) < W:
+                k = i * W + j
+                next_score = score + B[k] - di - dj
+                if next_score < scores[k]:
+                    scores[k] = next_score
+                    heappush(heap, (next_score, i, j))
 
-    def pessimistic_score(s, i, j):
-        return s + 9 * ((end[0] - i) + (end[1] - j))
-
-    stack = [(sum(end), 0, start, set())]
-    scores = {}
-    best_score = 9 * sum(end)
-
-    assert end[0] == end[1]
-
-    while stack:
-        stack.sort(reverse=True)
-        _, score, (i, j), visited = stack.pop()
-        for di, dj in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
-            k1 = i + di, j + dj
-            if k1 in board and k1 not in visited:
-                next_score = score + board[k1]
-                if next_score < scores.get(k1, inf):
-                    scores[k1] = next_score
-                    good_score = optimistic_score(next_score, *k1)
-                    if good_score < best_score:
-                        best_score = min(best_score, pessimistic_score(next_score, *k1))
-                        if k1 != end:
-                            stack.append((good_score, next_score, k1, visited | {k1}))
-    return best_score
+    return scores[N - 1]
 
 
 def build_big_board(board, n):
