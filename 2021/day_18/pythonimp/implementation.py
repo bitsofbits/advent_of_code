@@ -27,17 +27,17 @@ def parse(text):
 def emit_indexed(val):
     """
     >>> list(emit_indexed([[1,2],3]))
-    [('00', 1, 2), ('01', 2, 2), ('1', 3, 1)]
+    [(1, 2), (2, 2), (3, 1)]
     """
-    stack = [(val, "", 0)]
+    stack = [(val, 0)]
     while stack:
-        x, ndx, depth = stack.pop()
+        x, depth = stack.pop()
         if isinstance(x, int):
-            yield ndx, x, depth
+            yield x, depth
         else:
             L, R = x
-            stack.append((R, ndx + "1", depth + 1))
-            stack.append((L, ndx + "0", depth + 1))
+            stack.append((R, depth + 1))
+            stack.append((L, depth + 1))
 
 
 def indexed(val):
@@ -46,23 +46,23 @@ def indexed(val):
 
 def _reduce_once(indices):
     # First check if we need to explode anything
-    for i, (ndx, lval, depth) in enumerate(indices):
+    for i, (lval, depth) in enumerate(indices):
         if depth == 5:
-            _, rval, _ = indices[i + 1]
+            rval, _ = indices[i + 1]
             if i - 1 >= 0:
-                ndx_n, nval, depth_n = indices[i - 1]
-                indices[i - 1] = (ndx_n, nval + lval, depth_n)
+                nval, depth_n = indices[i - 1]
+                indices[i - 1] = (nval + lval, depth_n)
             if i + 2 < len(indices):
-                ndx_p, pval, depth_p = indices[i + 2]
-                indices[i + 2] = (ndx_p, pval + rval, depth_p)
-            indices[i : i + 2] = [(ndx[:-1], 0, depth - 1)]
+                pval, depth_p = indices[i + 2]
+                indices[i + 2] = (pval + rval, depth_p)
+            indices[i : i + 2] = [(0, depth - 1)]
             return True
     # Then if we need to split anything
-    for i, (ndx, v, depth) in enumerate(indices):
+    for i, (v, depth) in enumerate(indices):
         if v >= 10:
             L = v // 2
             R = v - L
-            indices[i : i + 1] = [(ndx + "0", L, depth + 1), (ndx + "1", R, depth + 1)]
+            indices[i : i + 1] = [(L, depth + 1), (R, depth + 1)]
             return True
     return False
 
@@ -74,7 +74,7 @@ def reduce(indices):
 
 
 def deepen(indices):
-    return [("0" + ndx, v, d + 1) for (ndx, v, d) in indices]
+    return [(v, d + 1) for (v, d) in indices]
 
 
 def add(ndx_a, ndx_b):
@@ -90,18 +90,18 @@ def add(ndx_a, ndx_b):
 
 def magnitude(indices):
     by_depth = defaultdict(list)
-    for i, (ndx, val, d) in enumerate(indices):
-        by_depth[d].append((i, ndx, val, d))
+    for i, (val, d) in enumerate(indices):
+        by_depth[d].append((i, val, d))
     depth = max(by_depth)
     while depth > 0:
         pending = by_depth[depth]
         for j in range(0, len(pending), 2):
-            i0, ndx0, val0, d0 = pending[j]
-            i1, ndx1, val1, d1 = pending[j + 1]
+            i0, val0, d0 = pending[j]
+            i1, val1, d1 = pending[j + 1]
             v = 3 * val0 + 2 * val1
-            insort_left(by_depth[depth - 1], (i0, ndx0[:-1], v, d0 - 1))
+            insort_left(by_depth[depth - 1], (i0, v, d0 - 1))
         depth -= 1
-    [(_, _, mag, _)] = by_depth[0]
+    [(_, mag, _)] = by_depth[0]
     return mag
 
 
