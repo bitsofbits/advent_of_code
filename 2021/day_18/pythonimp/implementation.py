@@ -62,7 +62,8 @@ def _reduce_once(indices):
         if v >= 10:
             L = v // 2
             R = v - L
-            indices[i : i + 1] = [(L, depth + 1), (R, depth + 1)]
+            depth = depth + 1
+            indices[i : i + 1] = [(L, depth), (R, depth)]
             return True
     return False
 
