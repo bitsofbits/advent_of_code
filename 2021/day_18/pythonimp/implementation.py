@@ -27,17 +27,17 @@ def parse(text):
 def emit_indexed(val):
     """
     >>> list(emit_indexed([[1,2],3]))
-    [((0, 0), 1, 2), ((0, 1), 2, 2), ((1,), 3, 1)]
+    [('00', 1, 2), ('01', 2, 2), ('1', 3, 1)]
     """
-    stack = [(val, (), 0)]
+    stack = [(val, "", 0)]
     while stack:
         x, ndx, depth = stack.pop()
         if isinstance(x, int):
             yield ndx, x, depth
         else:
             L, R = x
-            stack.append((R, (*ndx, 1), depth + 1))
-            stack.append((L, (*ndx, 0), depth + 1))
+            stack.append((R, ndx + "1", depth + 1))
+            stack.append((L, ndx + "0", depth + 1))
 
 
 def indexed(val):
@@ -46,9 +46,8 @@ def indexed(val):
 
 def _reduce_once(indices):
     # First check if we need to explode anything
-    for i, (ndx, val, depth) in enumerate(indices):
+    for i, (ndx, lval, depth) in enumerate(indices):
         if depth == 5:
-            lval = val
             _, rval, _ = indices[i + 1]
             if i - 1 >= 0:
                 ndx_n, nval, depth_n = indices[i - 1]
@@ -63,7 +62,7 @@ def _reduce_once(indices):
         if v >= 10:
             L = v // 2
             R = v - L
-            indices[i : i + 1] = [((*ndx, 0), L, depth + 1), ((*ndx, 1), R, depth + 1)]
+            indices[i : i + 1] = [(ndx + "0", L, depth + 1), (ndx + "1", R, depth + 1)]
             return True
     return False
 
@@ -75,7 +74,7 @@ def reduce(indices):
 
 
 def deepen(indices):
-    return [((0, *ndx), v, d + 1) for (ndx, v, d) in indices]
+    return [("0" + ndx, v, d + 1) for (ndx, v, d) in indices]
 
 
 def add(ndx_a, ndx_b):
