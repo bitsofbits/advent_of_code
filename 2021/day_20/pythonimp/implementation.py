@@ -90,15 +90,23 @@ def convolve(filt, img, extent, invert=False):
     |...##.##.|
     |....###..|
     """
+    min_i, max_i, min_j, max_j = extent
+    H = max_i - min_i + 5
+    W = max_j - min_j + 5
+    raster = [invert] * (H * W)
+    for (i, j), v in img.items():
+        raster[(i - min_i + 2) * W + (j - min_j + 2)] = v
+    offsets = [di * W + dj for di in [-1, 0, 1] for dj in [-1, 0, 1]]
 
     new_img = {}
-    min_i, max_i, min_j, max_j = extent
+
     for i in range(min_i - 1, max_i + 2):
+        k0 = (i - min_i + 2) * W - (min_j - 2)
         for j in range(min_j - 1, max_j + 2):
+            k = k0 + j
             x = 0
-            for di in [-1, 0, 1]:
-                for dj in [-1, 0, 1]:
-                    x = 2 * x + img.get((i + di, j + dj), invert)
+            for os in offsets:
+                x = 2 * x + raster[k + os]
             new_img[i, j] = filt[x]
     return new_img
 
