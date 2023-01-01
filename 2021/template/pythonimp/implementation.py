@@ -1,8 +1,3 @@
-EXAMPLE_TEXT = """
-
-"""
-
-
 def parse(text):
     """
     >>> parse(EXAMPLE_TEXT)
@@ -23,5 +18,8 @@ def part_2(text):
 
 if __name__ == "__main__":
     import doctest
+
+    with open("../data/example.txt") as f:
+        EXAMPLE_TEXT = f.read()
 
     doctest.testmod()
