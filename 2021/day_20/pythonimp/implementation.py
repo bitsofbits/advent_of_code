@@ -54,10 +54,22 @@ def parse(text):
     return filt, img
 
 
-def convolve(filt, img, invert=False):
+def compute_extent(img):
+    min_i = min_j = inf
+    max_i = max_j = -inf
+    for i, j in img:
+        min_i = min(i, min_i)
+        min_j = min(j, min_j)
+        max_i = max(i, max_i)
+        max_j = max(j, max_j)
+    return min_i, max_i, min_j, max_j
+
+
+def convolve(filt, img, extent, invert=False):
     """
     >>> filt, img = parse(EXAMPLE_TEXT)
-    >>> img = convolve(filt, img)
+    >>> extent = compute_extent(img)
+    >>> img = convolve(filt, img, extent)
     >>> print(render(img))
     |.##.##.|
     |#..#.#.|
@@ -66,7 +78,7 @@ def convolve(filt, img, invert=False):
     |.#..##.|
     |..##..#|
     |...#.#.|
-    >>> img = convolve(filt, img)
+    >>> img = convolve(filt, img, pad_extent(extent))
     >>> print(render(img))
     |.......#.|
     |.#..#.#..|
@@ -78,15 +90,9 @@ def convolve(filt, img, invert=False):
     |...##.##.|
     |....###..|
     """
-    min_i = min_j = inf
-    max_i = max_j = -inf
-    for i, j in img:
-        min_i = min(i, min_i)
-        min_j = min(j, min_j)
-        max_i = max(i, max_i)
-        max_j = max(j, max_j)
-    new_img = {}
 
+    new_img = {}
+    min_i, max_i, min_j, max_j = extent
     for i in range(min_i - 1, max_i + 2):
         for j in range(min_j - 1, max_j + 2):
             x = 0
@@ -95,6 +101,11 @@ def convolve(filt, img, invert=False):
                     x = 2 * x + img.get((i + di, j + dj), invert)
             new_img[i, j] = filt[x]
     return new_img
+
+
+def pad_extent(extent, n=1):
+    min_i, max_i, min_j, max_j = extent
+    return (min_i - n, max_i + n, min_j - n, max_j + n)
 
 
 def part_1(text):
@@ -109,8 +120,10 @@ def part_1(text):
     """
     filt, img = parse(text)
     invert = filt[0] == 1
-    img = convolve(filt, img)
-    img = convolve(filt, img, invert)
+    extent = compute_extent(img)
+    img = convolve(filt, img, extent)
+    extent = pad_extent(extent, 1)
+    img = convolve(filt, img, extent, invert)
     return sum(img.values())
 
 
@@ -121,9 +134,12 @@ def part_2(text):
     """
     filt, img = parse(text)
     invert = filt[0] == 1
+    extent = compute_extent(img)
     for i in range(25):
-        img = convolve(filt, img)
-        img = convolve(filt, img, invert)
+        img = convolve(filt, img, extent)
+        extent = pad_extent(extent, 1)
+        img = convolve(filt, img, extent, invert)
+        extent = pad_extent(extent, 1)
     return sum(img.values())
 
 
