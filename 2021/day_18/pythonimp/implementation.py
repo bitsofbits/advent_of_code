@@ -44,34 +44,32 @@ def indexed(val):
     return list(emit_indexed(val))
 
 
-def _reduce_once(indices):
-    # First check if we need to explode anything
-    for i, (lval, depth) in enumerate(indices):
-        if depth == 5:
-            rval, _ = indices[i + 1]
-            if i - 1 >= 0:
-                nval, depth_n = indices[i - 1]
-                indices[i - 1] = (nval + lval, depth_n)
-            if i + 2 < len(indices):
-                pval, depth_p = indices[i + 2]
-                indices[i + 2] = (pval + rval, depth_p)
-            indices[i : i + 2] = [(0, depth - 1)]
-            return True
-    # Then if we need to split anything
-    for i, (v, depth) in enumerate(indices):
-        if v >= 10:
-            L = v // 2
-            R = v - L
-            depth = depth + 1
-            indices[i : i + 1] = [(L, depth), (R, depth)]
-            return True
-    return False
-
-
 def reduce(indices):
-    while _reduce_once(indices):
-        pass
-    return indices
+    while True:
+        # First check if we need to explode anything
+        for i, (lval, depth) in enumerate(indices):
+            if depth == 5:
+                rval, _ = indices[i + 1]
+                if i - 1 >= 0:
+                    nval, depth_n = indices[i - 1]
+                    indices[i - 1] = (nval + lval, depth_n)
+                if i + 2 < len(indices):
+                    pval, depth_p = indices[i + 2]
+                    indices[i + 2] = (pval + rval, depth_p)
+                indices[i : i + 2] = [(0, depth - 1)]
+                break
+        else:
+            # If not, then check if we need to split anything
+            for i, (v, depth) in enumerate(indices):
+                if v >= 10:
+                    L = v // 2
+                    R = v - L
+                    depth = depth + 1
+                    indices[i : i + 1] = [(L, depth), (R, depth)]
+                    break
+            else:
+                # If not, we're done
+                return indices
 
 
 def deepen(indices):
