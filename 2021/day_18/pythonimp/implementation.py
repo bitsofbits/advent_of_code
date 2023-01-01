@@ -24,24 +24,22 @@ def parse(text):
     return literal_eval(text)
 
 
-def emit_indexed(val):
+def indexed(val):
     """
-    >>> list(emit_indexed([[1,2],3]))
+    >>> indexed([[1,2],3])
     [(1, 2), (2, 2), (3, 1)]
     """
     stack = [(val, 0)]
+    indexed = []
     while stack:
         x, depth = stack.pop()
         if isinstance(x, int):
-            yield x, depth
+            indexed.append((x, depth))
         else:
             L, R = x
             stack.append((R, depth + 1))
             stack.append((L, depth + 1))
-
-
-def indexed(val):
-    return list(emit_indexed(val))
+    return indexed
 
 
 def reduce(indices):
