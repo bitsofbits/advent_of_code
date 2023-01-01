@@ -18,8 +18,12 @@ def parse(text):
     return scanners
 
 
-def key_points(points, n=12, max_offset=2000):
+def key_points(points, n=12, max_offset=1500):
     """
+
+    max_offset is 1500 rather than 1000 (as you might expect) because the other
+    beacon could be midway between two points 1000 units apart.
+
     >>> sensors = parse(EXAMPLE_TEXT)
     >>> keys = list(key_points(sensors[0]))
 
@@ -78,14 +82,16 @@ def find_match(target_points, pointsets):
                 for sx in [1, -1]:
                     for sy in [1, -1]:
                         for sz in [1, -1]:
-                            for t in [
-                                (0, 1, 2),
-                                (0, 2, 1),
-                                (1, 2, 0),
-                                (1, 0, 2),
-                                (2, 0, 1),
-                                (2, 1, 0),
+                            for t, p in [
+                                ((0, 1, 2), 1),
+                                ((0, 2, 1), -1),
+                                ((1, 2, 0), 1),
+                                ((1, 0, 2), -1),
+                                ((2, 0, 1), 1),
+                                ((2, 1, 0), -1),
                             ]:
+                                if sx * sy * sz != p:
+                                    continue
                                 mpts_2 = {tx(p, sx, sy, sz, t) for p in relpts_2}
                                 if len(mpts_2 & mpts_1) >= 12:
                                     return (p1, p2, lbl2, (sx, sy, sz, t))
