@@ -12,8 +12,8 @@ if __name__ == "__main__":
 
     t0 = perf_counter()
     value = part_1(text)
-    print(f"Part 1: : {value} ({perf_counter() - t0:.1f}s)")
+    print(f"Part 1: : {value} ({perf_counter() - t0:.2f}s)")
 
     t0 = perf_counter()
     value = part_2(text)
-    print(f"Part 2: : {value} ({perf_counter() - t0:.1f}s)")
+    print(f"Part 2: : {value} ({perf_counter() - t0:.2f}s)")
