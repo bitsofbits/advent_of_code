@@ -1,7 +1,3 @@
-from collections import Counter
-from itertools import combinations
-
-
 def parse(text):
     """
     >>> sensors = parse(EXAMPLE_TEXT)
@@ -32,19 +28,17 @@ def key_points(points, n=12, max_offset=1500):
     >>> sorted(keys)[0]
     (-876, 649, 763)
     """
-    keys = set()
     for i, p1 in enumerate(points):
         cnt = 0
         for j, p2 in enumerate(points):
             if j <= i:
                 continue
-            deltas = [abs(x) for x in sub(p2, p1)]
+            deltas = tuple(abs(x) for x in sub(p2, p1))
             if all(v <= max_offset for v in deltas):
                 cnt += 1
             if cnt >= n - 1:
                 yield p1
                 break
-    return keys
 
 
 def sub(p2, p1):
@@ -59,10 +53,8 @@ def add(p2, p1):
     return (x2 + x1, y2 + y1, z2 + z1)
 
 
-def tx(p1, sx, sy, sz, t):
-    x1, y1, z1 = p1
-    x = (sx * x1, sy * y1, sz * z1)
-    return (x[t[0]], x[t[1]], x[t[2]])
+def tx(p, sx, sy, sz, t):
+    return (sx * p[t[0]], sy * p[t[1]], sz * p[t[2]])
 
 
 def find_match(target_points, pointsets):
@@ -70,14 +62,15 @@ def find_match(target_points, pointsets):
     >>> sensors = parse(EXAMPLE_TEXT)
     >>> n = 3
     >>> other = {k : v for (k, v) in sensors.items() if k != n}
-    >>> find_match(sensors[n], other)
+    >>> find_match(sensors[n], other)[:-1]
     ((-500, 565, -823), (-340, -569, -846), 1, (1, 1, 1, (0, 1, 2)))
     """
+    key_pts1 = list(key_points(target_points))
     for lbl2, other_points in pointsets.items():
-        # keypts_2 = key_points(other_points)
-        for p1 in key_points(target_points):
+        keypts_2 = list(key_points(other_points))
+        for p1 in key_pts1:
             mpts_1 = {sub(p, p1) for p in target_points}
-            for p2 in key_points(other_points):
+            for p2 in keypts_2:
                 relpts_2 = {sub(p, p2) for p in other_points}
                 for sx in [1, -1]:
                     for sy in [1, -1]:
@@ -94,7 +87,7 @@ def find_match(target_points, pointsets):
                                     continue
                                 mpts_2 = {tx(p, sx, sy, sz, t) for p in relpts_2}
                                 if len(mpts_2 & mpts_1) >= 12:
-                                    return (p1, p2, lbl2, (sx, sy, sz, t))
+                                    return (p1, p2, lbl2, (sx, sy, sz, t), mpts_2)
 
 
 def add_one_set(target_points, pointsets):
@@ -106,17 +99,26 @@ def add_one_set(target_points, pointsets):
     4
     >>> len(target)
     25
-    >>> add_one_set(target, other)
+    >>> _ = add_one_set(target, other)
     >>> len(target) # 2
     38
     >>> len(other)
     3
     """
-    (p1, p2, lbl2, t) = find_match(target_points, pointsets)
-    source_points = pointsets.pop(lbl2)
-    for p in {add(tx(sub(p, p2), *t), p1) for p in source_points}:
+    (p1, p2, lbl2, t, mpts_2) = find_match(target_points, pointsets)
+    pointsets.pop(lbl2)
+    for p in {add(p, p1) for p in mpts_2}:
         if p not in target_points:
             target_points.append(p)
+    # Real location of p2 is same as p1
+    # Now add the transformed location of p1 relative to the sensor
+    return sub(p1, tx(p2, *t))
+
+
+#   +p1    p2-p1  -p2
+# b1--->p1--->p2--->
+
+location = None
 
 
 def part_1(text):
@@ -124,20 +126,35 @@ def part_1(text):
     >>> part_1(EXAMPLE_TEXT)
     79
     """
+    global locations
     sensors = parse(text)
+    locations = [(0, 0, 0)]
     for k0 in sensors:
         targets = sensors.pop(k0)
         while sensors:
-            add_one_set(targets, sensors)
+            offset = add_one_set(targets, sensors)
+            locations.append(offset)
             print(len(sensors))
         else:
+
             return len(targets)
 
 
 def part_2(text):
     """
     >>> part_2(EXAMPLE_TEXT)
+    3621
     """
+
+    dists = []
+    for i, a in enumerate(locations):
+        for j, b in enumerate(locations):
+            if j >= i:
+                continue
+            delta = sub(a, b)
+            d = sum(abs(x) for x in delta)
+            dists.append(d)
+    return max(dists)
 
 
 if __name__ == "__main__":
