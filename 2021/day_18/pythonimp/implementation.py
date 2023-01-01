@@ -1,5 +1,4 @@
 from ast import literal_eval
-from copy import deepcopy
 
 EXAMPLE_TEXT = """
 [[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
@@ -48,20 +47,24 @@ def setv(x, ndx, val):
     x[ndx[-1]] = val
 
 
-def indexed(val):
+def emit_indexed(val):
     """
-    >>> list(indexed([[1,2],3]))
+    >>> list(emit_indexed([[1,2],3]))
     [((0, 0), 1), ((0, 1), 2), ((1,), 3)]
     """
-    stack = [(val, ())]
+    stack = [(val, (), 0)]
     while stack:
-        x, ndx = stack.pop()
+        x, ndx, depth = stack.pop()
         if isinstance(x, int):
-            yield ndx, x
+            yield ndx, x, depth
         else:
             L, R = x
-            stack.append((R, (*ndx, 1)))
-            stack.append((L, (*ndx, 0)))
+            stack.append((R, (*ndx, 1), depth + 1))
+            stack.append((L, (*ndx, 0), depth + 1))
+
+
+def indexed(val):
+    return list(emit_indexed(val))
 
 
 def indices_of(val):
@@ -69,91 +72,73 @@ def indices_of(val):
     >>> list(indices_of([[1,2],3]))
     [(0, 0), (0, 1), (1,)]
     """
-    for (ndx, x) in indexed(val):
+    for (ndx, x, d) in indexed(val):
         yield ndx
 
 
-def _reduce_once(x, indices):
+def _reduce_once(indices):
     # First check if we need to explode anything
-    for i, (ndx, val) in enumerate(indices):
-        if len(ndx) == 5:
+    for i, (ndx, val, depth) in enumerate(indices):
+        if depth == 5:
             lval = val
-            _, rval = indices[i + 1]
+            _, rval, _ = indices[i + 1]
             if i - 1 >= 0:
-                ndx_n, nval = indices[i - 1]
+                ndx_n, nval, depth_n = indices[i - 1]
                 nval += lval
-                setv(x, ndx_n, nval)
-                indices[i - 1] = (ndx_n, nval)
+                indices[i - 1] = (ndx_n, nval, depth_n)
             if i + 2 < len(indices):
-                ndx_p, pval = indices[i + 2]
+                ndx_p, pval, depth_p = indices[i + 2]
                 pval += rval
-                setv(x, ndx_p, pval)
-                indices[i + 2] = (ndx_p, pval)
-            setv(x, ndx[:-1], 0)
-            # Update indices in place, since regenerating is expensive
-            indices[i : i + 2] = [(ndx[:-1], 0)]
+                indices[i + 2] = (ndx_p, pval, depth_p)
+            indices[i : i + 2] = [(ndx[:-1], 0, depth - 1)]
             return True
     # Then if we need to split anything
-    for i, (ndx, v) in enumerate(indices):
+    for i, (ndx, v, depth) in enumerate(indices):
         if v >= 10:
             L = v // 2
             R = v - L
-            setv(x, ndx, [L, R])
-            # Update indices in place, since regenerating is expensive
-            indices[i : i + 1] = [((*ndx, 0), L), ((*ndx, 1), R)]
+            indices[i : i + 1] = [((*ndx, 0), L, depth + 1), ((*ndx, 1), R, depth + 1)]
             return True
     return False
 
 
-def reduce(x):
-    """
-    >>> reduce([[[[[9,8],1],2],3],4])
-    [[[[0, 9], 2], 3], 4]
-    >>> reduce([7,[6,[5,[4,[3,2]]]]])
-    [7, [6, [5, [7, 0]]]]
-    >>> reduce([[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]])
-    [[[[0, 7], 4], [[7, 8], [6, 0]]], [8, 1]]
-    """
-    x = deepcopy(x)
-
-    indices = list(indexed(x))
-    while _reduce_once(x, indices):
-        # indices = list(indexed(x))
+def reduce(indices):
+    while _reduce_once(indices):
         pass
-    return x
+    return indices
 
 
-def add(x, y):
+def add(ndx_a, ndx_b):
     """
-    >>> add([[[[4,3],4],4],[7,[[8,4],9]]], [1,1])
-    [[[[0, 7], 4], [[7, 8], [6, 0]]], [8, 1]]
     >>> a = [[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]
     >>> b = [[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
-    >>> c = add(a, b)
-    >>> c
-    [[[[7, 8], [6, 6]], [[6, 0], [7, 7]]], [[[7, 8], [8, 8]], [[7, 9], [0, 6]]]]
+    >>> c = add(indexed(a), indexed(b))
+    >>> magnitude(c)
+    3993
     """
-    return reduce([x, y])
+    ndx_a = [((0, *ndx), v, d + 1) for (ndx, v, d) in ndx_a]
+    ndx_b = [((1, *ndx), v, d + 1) for (ndx, v, d) in ndx_b]
+    return reduce(ndx_a + ndx_b)
 
 
-def magnitude(x):
-    if isinstance(x, int):
-        return x
-    a, b = x
-    return 3 * magnitude(a) + 2 * magnitude(b)
-
-
-# def magnitude(x):
-#     indices = list(indexed(x))
-#     depth = max(len(ndx) for (ndx, _) in indices)
-#     while depth > 0:
-#         pending = [
-#             (i, (ndx, val))
-#             for (i, (ndx, val)) in enumerate(indices)
-#             if len(ndx) == depth
-#         ]
-#         for i, ndx, val in pending.reversed():
-#             pass
+def magnitude(indices):
+    indices = indices.copy()
+    depth = max(depth for (ndx, val, depth) in indices)
+    while depth > 0:
+        pending = [
+            (i, (ndx, val, d))
+            for (i, (ndx, val, d)) in enumerate(indices)
+            if d == depth
+        ][::-1]
+        assert len(pending) % 2 == 0
+        for j in range(0, len(pending), 2):
+            i0, (ndx0, val0, d0) = pending[j + 1]
+            i1, (ndx1, val1, d1) = pending[j]
+            v = 3 * val0 + 2 * val1
+            indices[i0 : i0 + 2] = [(ndx0[:-1], v, d0 - 1)]
+        depth -= 1
+    [(_, mag, _)] = indices
+    return mag
 
 
 def part_1(text):
@@ -161,7 +146,7 @@ def part_1(text):
     >>> part_1(EXAMPLE_TEXT)
     4140
     """
-    vals = [parse(x) for x in text.strip().split()]
+    vals = [indexed(parse(x)) for x in text.strip().split()]
     x = vals[0]
     for y in vals[1:]:
         x = add(x, y)
@@ -173,7 +158,7 @@ def part_2(text):
     >>> part_2(EXAMPLE_TEXT)
     3993
     """
-    inputs = [parse(x) for x in text.strip().split()]
+    inputs = [indexed(parse(x)) for x in text.strip().split()]
     outputs = []
     for i, x in enumerate(inputs):
         for j, y in enumerate(inputs):
