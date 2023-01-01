@@ -91,12 +91,13 @@ def magnitude(indices):
         by_depth[d].append((i, val, d))
     depth = max(by_depth)
     while depth > 0:
-        pending = by_depth[depth]
-        for j in range(0, len(pending), 2):
-            i0, val0, d0 = pending[j]
-            i1, val1, d1 = pending[j + 1]
+        current = by_depth[depth]
+        upcoming = by_depth[depth - 1]
+        for j in range(0, len(current), 2):
+            i0, val0, d0 = current[j]
+            i1, val1, d1 = current[j + 1]
             v = 3 * val0 + 2 * val1
-            insort_left(by_depth[depth - 1], (i0, v, d0 - 1))
+            insort_left(upcoming, (i0, v, d0 - 1))
         depth -= 1
     [(_, mag, _)] = by_depth[0]
     return mag
