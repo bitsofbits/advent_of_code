@@ -1,3 +1,14 @@
+from typing import NamedTuple
+
+
+class PointSet(NamedTuple):
+    points: list
+    # Dists are conceptually multisets, but we implement as lists
+    all_dists: list
+    dists_per_point: list
+    offsets: set
+
+
 def parse(text):
     """
     >>> sensors = parse(EXAMPLE_TEXT)
@@ -10,25 +21,26 @@ def parse(text):
         points = []
         for line in lines[1:]:
             points.append(tuple(int(x) for x in line.split(",")))
-        scanners[ndx] = (points, find_dists(points), {(0, 0, 0)})
+        scanners[ndx] = PointSet(points, *find_dists(points), {(0, 0, 0)})
     return scanners
 
 
 def find_dists(points):
-    dists = []
-    key_points = []
+    all_dists = []
+    dists_per_pt = []
     for i, p1 in enumerate(points):
+
         x1, y1, z1 = p1
         kdists = []
         for j, p2 in enumerate(points):
             x2, y2, z2 = p2
             d = (x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2
             if j > i:
-                dists.append(d)
+                all_dists.append(d)
             if j != i:
                 kdists.append(d)
-        key_points.append((p1, kdists))
-    return dists, key_points
+        dists_per_pt.append(kdists)
+    return all_dists, dists_per_pt
 
 
 def overlaps_atleast(p1, p2, n):
@@ -82,16 +94,20 @@ def find_match(pointsets):
     >>> sensors = parse(EXAMPLE_TEXT)
     >>> _ = find_match(sensors)[:-1]
     """
-    for lbl1, (points_1, (dists_1, keypts_1), offsets) in pointsets.items():
-        for lbl2, (points_2, (dists_2, keypts_2), offsets) in pointsets.items():
-            if lbl1 >= lbl2:
+    # By merging smaller pairs first we reduce recomputation of dists
+    keys = sorted(pointsets, key=lambda k: len(pointsets[k].all_dists))
+    for i, lbl1 in enumerate(keys):
+        for j, lbl2 in enumerate(keys):
+            if j >= i:
                 continue
-            if not overlaps_atleast(dists_1, dists_2, 66):
+            points_1, all_dists_1, dists_per_pt_1, _ = pointsets[lbl1]
+            points_2, all_dists_2, dists_per_pt_2, _ = pointsets[lbl2]
+            if not overlaps_atleast(all_dists_1, all_dists_2, 66):
                 continue
-            for p1, kdists1 in keypts_1:
+            for p1, p1_dists in zip(points_1, dists_per_pt_1):
                 mpts_1 = {sub(p, p1) for p in points_1}
-                for p2, kdists2 in keypts_2:
-                    if not overlaps_atleast(kdists1, kdists2, 11):
+                for p2, p2_dists in zip(points_2, dists_per_pt_2):
+                    if not overlaps_atleast(p1_dists, p2_dists, 11):
                         continue
                     relpts_2 = {sub(p, p2) for p in points_2}
                     for tx in TRANSFORMS:
@@ -104,7 +120,7 @@ def find_match(pointsets):
 def add_one_set(pointsets):
     """
     >>> sensors = parse(EXAMPLE_TEXT)
-    >>> target, _, _ = sensors[0]
+    >>> target, *_ = sensors[0]
     >>> other = {k : v for (k, v) in sensors.items() if k != 0}
     >>> len(sensors)
     5
@@ -113,12 +129,12 @@ def add_one_set(pointsets):
     4
     """
     (lbl1, p1, lbl2, p2, t, mpts_2) = find_match(pointsets)
-    _, _, offsets2 = pointsets.pop(lbl2)
-    target_points, _, offsets = pointsets.pop(lbl1)
+    pset2 = pointsets.pop(lbl2)
+    target_points, _, _, offsets = pointsets.pop(lbl1)
     for p in {add(p, p1) for p in mpts_2}:
         if p not in target_points:
             target_points.append(p)
-    for os in offsets2:
+    for os in pset2.offsets:
         # First get the offset relative to our anchor point in frame 2
         os = sub(os, p2)
         # Then transform the offset to get it into frame 2
@@ -126,9 +142,7 @@ def add_one_set(pointsets):
         # Then shift by our anchor point in frame 2
         os = add(p1, os)
         offsets.add(os)
-    # EXPLAIN
-    # offsets.update(add(p1, txfm(sub(o, p2), *t)) for o in offsets2)
-    pointsets[lbl1] = (target_points, find_dists(target_points), offsets)
+    pointsets[lbl1] = PointSet(target_points, *find_dists(target_points), offsets)
 
 
 offsets = None
@@ -143,8 +157,9 @@ def part_1(text):
     sensors = parse(text)
     while len(sensors) > 1:
         add_one_set(sensors)
-    _, (targets, _, offsets) = sensors.popitem()
-    return len(targets)
+    _, pset = sensors.popitem()
+    offsets = pset.offsets
+    return len(pset.points)
 
 
 def part_2(text):
