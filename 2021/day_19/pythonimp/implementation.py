@@ -25,9 +25,9 @@ def find_dists(points):
             d = (x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2
             if j > i:
                 dists.append(d)
-            kdists.append(d)
+            if j != i:
+                kdists.append(d)
         key_points.append((p1, kdists))
-
     return dists, key_points
 
 
@@ -41,8 +41,8 @@ def overlaps_atleast(p1, p2, n):
     if sum(1 for x in p1 if x in s2) < n:
         return False
     if sum(1 for x in p2 if x in s1) < n:
-        return True
-    return False
+        return False
+    return True
 
 
 def sub(p2, p1):
@@ -97,14 +97,7 @@ def find_match(pointsets):
                     for tx in TRANSFORMS:
                         mpts_2 = {txfm(p, *tx) for p in relpts_2}
                         if len(mpts_2 & mpts_1) >= 12:
-                            return (
-                                lbl1,
-                                p1,
-                                p2,
-                                lbl2,
-                                tx,
-                                mpts_2,
-                            )
+                            return (lbl1, p1, lbl2, p2, tx, mpts_2)
     raise ValueError()
 
 
@@ -119,14 +112,22 @@ def add_one_set(pointsets):
     >>> len(sensors)
     4
     """
-    (lbl1, p1, p2, lbl2, t, mpts_2) = find_match(pointsets)
+    (lbl1, p1, lbl2, p2, t, mpts_2) = find_match(pointsets)
     _, _, offsets2 = pointsets.pop(lbl2)
     target_points, _, offsets = pointsets.pop(lbl1)
     for p in {add(p, p1) for p in mpts_2}:
         if p not in target_points:
             target_points.append(p)
+    for os in offsets2:
+        # First get the offset relative to our anchor point in frame 2
+        os = sub(os, p2)
+        # Then transform the offset to get it into frame 2
+        os = txfm(os, *t)
+        # Then shift by our anchor point in frame 2
+        os = add(p1, os)
+        offsets.add(os)
     # EXPLAIN
-    offsets.update(add(p1, txfm(sub(o, p2), *t)) for o in offsets2)
+    # offsets.update(add(p1, txfm(sub(o, p2), *t)) for o in offsets2)
     pointsets[lbl1] = (target_points, find_dists(target_points), offsets)
 
 
