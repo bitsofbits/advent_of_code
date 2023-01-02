@@ -29,7 +29,6 @@ def find_dists(points):
     all_dists = []
     dists_per_pt = []
     for i, p1 in enumerate(points):
-
         x1, y1, z1 = p1
         kdists = []
         for j, p2 in enumerate(points):
@@ -129,11 +128,11 @@ def add_one_set(pointsets):
     4
     """
     (lbl1, p1, lbl2, p2, t, mpts_2) = find_match(pointsets)
+    pset1 = pointsets.pop(lbl1)
     pset2 = pointsets.pop(lbl2)
-    target_points, _, _, offsets = pointsets.pop(lbl1)
     for p in {add(p, p1) for p in mpts_2}:
-        if p not in target_points:
-            target_points.append(p)
+        if p not in pset1.points:
+            pset1.points.append(p)
     for os in pset2.offsets:
         # First get the offset relative to our anchor point in frame 2
         os = sub(os, p2)
@@ -141,8 +140,8 @@ def add_one_set(pointsets):
         os = txfm(os, *t)
         # Then shift by our anchor point in frame 2
         os = add(p1, os)
-        offsets.add(os)
-    pointsets[lbl1] = PointSet(target_points, *find_dists(target_points), offsets)
+        pset1.offsets.add(os)
+    pointsets[lbl1] = PointSet(pset1.points, *find_dists(pset1.points), pset1.offsets)
 
 
 offsets = None
