@@ -110,16 +110,6 @@ def intersection(rgn_a, rgn_b):
     return (ix, iy, iz)
 
 
-def compute_interaction(step_a, step_b):
-    """Affect of step_b coming after step_a"""
-    sa, region_a = step_a
-    sb, region_b = step_b
-    if intersects(region_a, region_b):
-        return [(-sa, intersection(region_a, region_b))]
-    else:
-        return []
-
-
 def volume(ranges):
     (x0, x1), (y0, y1), (z0, z1) = ranges
     return (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1)
@@ -135,10 +125,6 @@ def clip_region(region, cube):
     return tuple(ranges)
 
 
-def sort_x0(x):
-    return x[1][0][0]
-
-
 def reboot(steps, clip_to_init_region):
     interactions = []
     for i, step_b in enumerate(steps):
@@ -148,8 +134,11 @@ def reboot(steps, clip_to_init_region):
                 continue
             step_b = (s, region)
         last_i = len(interactions) - 1
-        for i, current in enumerate(interactions):
-            interactions.extend(compute_interaction(current, step_b))
+        for i, step_a in enumerate(interactions):
+            sa, region_a = step_a
+            _, region_b = step_b
+            if intersects(region_a, region_b):
+                interactions.append((-sa, intersection(region_a, region_b)))
             if i >= last_i:
                 break
         if step_b[0]:
