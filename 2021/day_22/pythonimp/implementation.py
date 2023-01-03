@@ -147,9 +147,11 @@ def reboot(steps, clip_to_init_region):
             if (region := clip_region(region, [(-50, 50)] * 3)) is None:
                 continue
             step_b = (s, region)
-        for i in range(len(interactions)):
-            current = interactions[i]
+        last_i = len(interactions) - 1
+        for i, current in enumerate(interactions):
             interactions.extend(compute_interaction(current, step_b))
+            if i >= last_i:
+                break
         if step_b[0]:
             interactions.append(step_b)
     for x in interactions:
