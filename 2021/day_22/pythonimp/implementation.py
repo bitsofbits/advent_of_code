@@ -54,9 +54,12 @@ def intersects(rgn_a, rgn_b):
     ((ax1, ax2), (ay1, ay2), (az1, az2)) = rgn_a
     ((bx1, bx2), (by1, by2), (bz1, bz2)) = rgn_b
     return (
-        (ax2 >= bx1 and ax1 <= bx2)
-        and (ay2 >= by1 and ay1 <= by2)
-        and (az2 >= bz1 and az1 <= bz2)
+        ax2 >= bx1
+        and ax1 <= bx2
+        and ay2 >= by1
+        and ay1 <= by2
+        and az2 >= bz1
+        and az1 <= bz2
     )
 
 
@@ -133,18 +136,27 @@ def reboot(steps, clip_to_init_region):
             if (region := clip_region(region, [(-50, 50)] * 3)) is None:
                 continue
             step_b = (s, region)
-        last_i = len(interactions) - 1
-        for i, step_a in enumerate(interactions):
-            sa, region_a = step_a
-            _, region_b = step_b
-            if intersects(region_a, region_b):
+        _, region_b = step_b
+        ((bx1, bx2), (by1, by2), (bz1, bz2)) = region_b
+
+        left = len(interactions)
+        for sa, region_a in interactions:
+            ((ax1, ax2), (ay1, ay2), (az1, az2)) = region_a
+            if (
+                ax2 >= bx1
+                and ax1 <= bx2
+                and ay2 >= by1
+                and ay1 <= by2
+                and az2 >= bz1
+                and az1 <= bz2
+            ):
                 interactions.append((-sa, intersection(region_a, region_b)))
-            if i >= last_i:
+            left -= 1
+            if not left:
                 break
         if step_b[0]:
             interactions.append(step_b)
-    for x in interactions:
-        assert x[0] in (1, -1)
+
     return sum(s * volume(r) for (s, r) in interactions)
 
 
