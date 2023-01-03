@@ -1,3 +1,6 @@
+from bisect import bisect_left, bisect_right
+
+
 def parse_loc(text, which):
     w, rng = text.split("=")
     assert w == which, (w, which)
@@ -47,16 +50,14 @@ def is_empty(rng):
     return x >= y
 
 
-def lin_intersects(rng_a, rng_b):
-    a1, a2 = rng_a
-    b1, b2 = rng_b
-    return not (a2 < b1 or a1 > b2)
-
-
 def intersects(rgn_a, rgn_b):
-    (ax, ay, az) = rgn_a
-    (bx, by, bz) = rgn_b
-    return lin_intersects(ax, bx) and lin_intersects(ay, by) and lin_intersects(az, bz)
+    ((ax1, ax2), (ay1, ay2), (az1, az2)) = rgn_a
+    ((bx1, bx2), (by1, by2), (bz1, bz2)) = rgn_b
+    return (
+        (ax2 >= bx1 and ax1 <= bx2)
+        and (ay2 >= by1 and ay1 <= by2)
+        and (az2 >= bz1 and az1 <= bz2)
+    )
 
 
 def lin_contained_in(rng_a, rng_b):
@@ -109,16 +110,14 @@ def intersection(rgn_a, rgn_b):
     return (ix, iy, iz)
 
 
-def compute_interation(step_a, step_b):
+def compute_interaction(step_a, step_b):
     """Affect of step_b coming after step_a"""
     sa, region_a = step_a
     sb, region_b = step_b
-    assert sa in (-1, 1)
-    assert sb in (0, 1)
-    region_c = intersection(region_a, region_b)
-    if region_c is None:
-        return [step_a]
-    return [step_a, (-sa, region_c)]
+    if intersects(region_a, region_b):
+        return [(-sa, intersection(region_a, region_b))]
+    else:
+        return []
 
 
 def volume(ranges):
@@ -126,45 +125,33 @@ def volume(ranges):
     return (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1)
 
 
-# def reboot(steps):
-#     states = set()
-#     for i, step in enumerate(steps):
-#         s, (x_rng, y_rng, z_rng) = step
-#         if is_empty(x_rng := clip_rng(x_rng, -50, 50)):
-#             continue
-#         if is_empty(y_rng := clip_rng(y_rng, -50, 50)):
-#             continue
-#         if is_empty(z_rng := clip_rng(z_rng, -50, 50)):
-#             continue
-#         for x in range(x_rng[0], x_rng[1] + 1):
-#             for y in range(y_rng[0], y_rng[1] + 1):
-#                 for z in range(z_rng[0], z_rng[1] + 1):
-#                     k = (x, y, z)
-#                     if s == 0:
-#                         states.discard(k)
-#                     if s == 1:
-#                         states.add(k)
-#     return states
+def clip_region(region, cube):
+    assert len(region) == len(cube)
+    ranges = []
+    for rng, interval in zip(region, cube):
+        if is_empty(rng := clip_rng(rng, *interval)):
+            return None
+        ranges.append(rng)
+    return tuple(ranges)
 
 
-def reboot(steps, clip=True):
+def sort_x0(x):
+    return x[1][0][0]
+
+
+def reboot(steps, clip_to_init_region):
     interactions = []
     for i, step_b in enumerate(steps):
-        if clip:
-            s, (x_rng, y_rng, z_rng) = step_b
-            if is_empty(x_rng := clip_rng(x_rng, -50, 50)):
+        if clip_to_init_region:
+            s, region = step_b
+            if (region := clip_region(region, [(-50, 50)] * 3)) is None:
                 continue
-            if is_empty(y_rng := clip_rng(y_rng, -50, 50)):
-                continue
-            if is_empty(z_rng := clip_rng(z_rng, -50, 50)):
-                continue
-            step_b = (s, (x_rng, y_rng, z_rng))
-        new_interactions = []
-        for x in interactions:
-            new_interactions.extend(compute_interation(x, step_b))
+            step_b = (s, region)
+        for i in range(len(interactions)):
+            current = interactions[i]
+            interactions.extend(compute_interaction(current, step_b))
         if step_b[0]:
-            new_interactions.append(step_b)
-        interactions = new_interactions
+            interactions.append(step_b)
     for x in interactions:
         assert x[0] in (1, -1)
     return sum(s * volume(r) for (s, r) in interactions)
@@ -181,7 +168,7 @@ def part_1(text):
     global total
 
     steps = parse(text)
-    return reboot(steps)
+    return reboot(steps, clip_to_init_region=True)
 
 
 def part_2(text):
@@ -193,7 +180,7 @@ def part_2(text):
     1133805115975417 too low
     """
     steps = parse(text)
-    return reboot(steps, clip=False)
+    return reboot(steps, clip_to_init_region=False)
 
 
 if __name__ == "__main__":
