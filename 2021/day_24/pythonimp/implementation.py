@@ -134,14 +134,12 @@ def extract_fast_subprogram(prog):
 def run_fast_subprogram(program, z_values):
     a, b, c = program
     for w in range(1, 10):
-        for z in z_values:
-            z0 = z
-            x = (z % 26 + b) != w
-            z = int(z / a)
-            y = 25 * x + 1
-            z *= y
-            y = (w + c) * x
-            z += y
+        w_plus_c = w + c
+        w_minus_b = w - b
+        for z0 in z_values:
+            z = int(z0 / a)
+            if z0 % 26 != w_minus_b:
+                z = z * 26 + w_plus_c
             yield (w, z0), z
 
 
@@ -154,51 +152,68 @@ def run_subprogram(program, z_values):
             yield ((w, z), alu.reg["z"])
 
 
+def check(text, digits):
+    program = parse(text)
+    alu = ALU()
+    alu.run(program, digits)
+    assert alu.reg["z"] == 0, alu.reg
+
+
+def build_output_maps(program, z_prune=26**4):
+    subprograms = list(split_into_subprograms(program))
+    z_values = [0]
+    output_maps = []
+    for i, prog in enumerate(subprograms):
+        fastprog = extract_fast_subprogram(prog)
+        omap = dict(run_fast_subprogram(fastprog, z_values))
+        output_maps.append(omap)
+        z_values = set(z for (_, z) in omap.items() if abs(z) < z_prune)
+    return output_maps
+
+
+def find_valid_output_maps(output_maps):
+    z_cands = []
+    z_set = {0}
+    for om in output_maps[::-1]:
+        zc = {(d, z0): z for ((d, z0), z) in om.items() if z in z_set}
+        z_cands.append(zc)
+        z_set = set(z0 for (_, z0) in zc)
+    z_cands.reverse()
+    return z_cands
+
+
+def find_digits(output_maps, metric):
+    z = 0
+    digits = []
+    for om in output_maps:
+        d, z = metric((d, z_) for ((d, z0), z_) in om.items() if z0 == z)
+        digits.append(d)
+    return digits
+
+
 def part_1(text):
     """
     >>> part_1(INPUT_TEXT)
     79997391969649
     """
-    global z_cands
-    full_program = parse(text)
-    subprograms = list(split_into_subprograms(full_program))
-    # ->
-    z_values = [0]
-    omaps = []
-    for i, prog in enumerate(subprograms):
-        fastprog = extract_fast_subprogram(prog)
-        om = dict(run_fast_subprogram(fastprog, z_values))
-        # om = dict(run_subprogram(prog, z_values))
-        omaps.append(om)
-        z_values = set(z for (_, z) in om.items() if abs(z) < 26**4)
-
-    z_cands = []
-    z_set = {0}
-    for om in omaps[::-1]:
-        zc = {(d, z0): z for ((d, z0), z) in om.items() if z in z_set}
-        z_cands.append(zc)
-        z_set = set(z0 for (_, z0) in zc)
-    z_cands.reverse()
-    z = 0
-    digits = []
-    for om in z_cands:
-        d, z = max((d, z_) for ((d, z0), z_) in om.items() if z0 == z)
-        digits.append(d)
+    program = parse(text)
+    output_maps = build_output_maps(program)
+    output_maps = find_valid_output_maps(output_maps)
+    digits = find_digits(output_maps, max)
+    check(text, digits)
     return int("".join(str(x) for x in digits))
 
 
 def part_2(text):
     """
-    >>> part_2(EXAMPLE_TEXT)
+    >>> part_2(INPUT_TEXT)
     16931171414113
     """
-    global z_cands
-    z = 0
-    digits = []
-    for om in z_cands:
-        d, z = min((d, z_) for ((d, z0), z_) in om.items() if z0 == z)
-        digits.append(d)
-
+    program = parse(text)
+    output_maps = build_output_maps(program)
+    output_maps = find_valid_output_maps(output_maps)
+    digits = find_digits(output_maps, min)
+    check(text, digits)
     return int("".join(str(x) for x in digits))
 
 
