@@ -57,7 +57,12 @@ class Board:
     rooms = set(target_amphs)
     for loc, a in target_amphs.items():
         amph_homes[a].add(loc)
-    del loc, a
+    amph_home_j = {}
+    for a, homes in amph_homes.items():
+        for (i, j) in homes:
+            assert j == amph_home_j.get(a, j) == j
+            amph_home_j[a] = j
+    del loc, homes, a, j
 
     def __init__(self, walls, amphs, hall):
         self.walls = walls
@@ -105,15 +110,14 @@ class Board:
         cost = 0
         moved = {k: 0 for k in "ABCD"}
         for (i, j), kind in amphs:
-            candidates = sorted(cls.amph_homes[kind])
-            (_, target_j) = candidates[0]
+            target_j = cls.amph_home_j[kind]
             dj = abs(j - target_j)
             if dj > 0:
                 cost += COSTS[kind] * abs(i - 1)
                 moved[kind] += 1
             cost += COSTS[kind] * dj
         for kind, cnt in moved.items():
-            cost += COSTS[kind] * sum(range(cnt))
+            cost += COSTS[kind] * sum(range(1, cnt + 1))
         return cost
 
     @classmethod
@@ -126,7 +130,7 @@ class Board:
         estimated = cls.estimate_remaining_cost(amphs)
         queue = [(estimated, 0, frozenset(amphs.items()))]
         best_score = inf
-        states = set()
+        states = {}
         target = frozenset(cls.target_amphs.items())
         while queue:
             _, score, amphs = heappop(queue)
@@ -139,8 +143,10 @@ class Board:
                     new_amphs = frozenset(new_amphs.items())
                     if new_amphs == target:
                         best_score = min(best_score, new_score)
-                    elif estimated < best_score and new_amphs not in states:
-                        states.add(new_amphs)
+                    elif estimated < best_score and estimated < states.get(
+                        new_amphs, inf
+                    ):
+                        states[new_amphs] = estimated
                         heappush(queue, (estimated, new_score, new_amphs))
         return best_score
 
@@ -151,6 +157,7 @@ class Board:
             kind = amphs[start]
             ends = cls.amph_homes[kind]
         else:
+            assert start in cls.rooms
             ends = cls.hall_dests
         for end in ends:
             if end not in amphs:
@@ -286,7 +293,12 @@ class Board2(Board):
     rooms = set(target_amphs)
     for loc, a in target_amphs.items():
         amph_homes[a].add(loc)
-    del loc, a
+    amph_home_j = {}
+    for a, homes in amph_homes.items():
+        for (i, j) in homes:
+            assert j == amph_home_j.get(a, j) == j
+            amph_home_j[a] = j
+    del loc, homes, a, j
 
     @classmethod
     def from_text(cls, text):
