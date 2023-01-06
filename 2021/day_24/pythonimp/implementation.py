@@ -212,7 +212,7 @@ def part_2(text):
     program = parse(text)
     output_maps = build_output_maps(program)
     output_maps = find_valid_output_maps(output_maps)
-    # Not that stuff above is the same, so we could
+    # Note that stuff above is the same, so we could
     # compute both parts in the time it takes to compute
     # one
     digits = find_digits(output_maps, min)
