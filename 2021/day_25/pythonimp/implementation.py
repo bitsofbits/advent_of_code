@@ -3,7 +3,8 @@ from itertools import count
 
 class Board:
     def __init__(self, board):
-        self.board = board
+        self.east = {loc for (loc, c) in board.items() if c == ">"}
+        self.south = {loc for (loc, c) in board.items() if c == "v"}
         self.max_i = max(i for ((i, j), c) in board.items())
         self.max_j = max(j for ((i, j), c) in board.items())
 
@@ -12,7 +13,12 @@ class Board:
         for i in range(self.max_i + 1):
             chunks.append("|")
             for j in range(self.max_j + 1):
-                c = self.board.get((i, j), ".")
+                if (i, j) in self.east:
+                    c = ">"
+                elif (i, j) in self.south:
+                    c = "v"
+                else:
+                    c = "."
                 chunks.append(c)
             chunks.append("|")
             chunks.append("\n")
@@ -21,7 +27,9 @@ class Board:
     def advance(self):
         """
         >>> board = parse(EXAMPLE_TEXT)
-        >>> Board(board.advance())
+        >>> board.advance()
+        False
+        >>> board
         |....>.>v.>|
         |v.v>.>v.v.|
         |>v>>..>v..|
@@ -32,44 +40,40 @@ class Board:
         |vv...>>vv.|
         |>.v.v..v.v|
         """
-
-        board = self.board
-        new_board = {}
+        east = self.east
+        south = self.south
         n_i = self.max_i + 1
         n_j = self.max_j + 1
-        for (i, j), c in board.items():
-            i1, j1 = (i, j)
-            match c:
-                case ">":
-                    j1 = (j1 + 1) % n_j
-                case _:
-                    new_board[i1, j1] = c
-                    continue
-            if (i1, j1) in board:
-                i1, j1 = i, j
-            new_board[i1, j1] = c
 
-        board = new_board
-        new_board = {}
+        static = True
+        new_east = set()
+        for i, j in east:
+            j1 = (j + 1) % n_j
+            if (i, j1) in south or (i, j1) in east:
+                new_east.add((i, j))
+            else:
+                static = False
+                new_east.add((i, j1))
 
-        for (i, j), c in board.items():
-            i1, j1 = (i, j)
-            match c:
-                case "v":
-                    i1 = (i1 + 1) % n_i
-                case _:
-                    new_board[i1, j1] = c
-                    continue
-            if (i1, j1) in board:
-                i1, j1 = i, j
-            new_board[i1, j1] = c
+        new_south = set()
+        for i, j in south:
+            i1 = (i + 1) % n_i
+            if (i1, j) in south or (i1, j) in new_east:
+                new_south.add((i, j))
+            else:
+                static = False
+                new_south.add((i1, j))
 
-        return new_board
+        self.south = new_south
+        self.east = new_east
+
+        return static
 
 
 def parse(text):
     """
-    >>> parse(EXAMPLE_TEXT)
+    >>> board = parse(EXAMPLE_TEXT)
+    >>> board
     |v...>>.vv>|
     |.vv>>.vv..|
     |>>.>v>...v|
@@ -95,18 +99,9 @@ def part_1(text):
     58
     """
     board = parse(text)
-    for i in count():
-        new_board = board.advance()
-        if new_board == board.board:
-            break
-        board = Board(new_board)
-    return i + 1
-
-
-def part_2(text):
-    """
-    >>> part_2(EXAMPLE_TEXT)
-    """
+    for i in count(1):
+        if board.advance():
+            return i
 
 
 if __name__ == "__main__":
