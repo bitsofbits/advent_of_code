@@ -1,5 +1,4 @@
 from collections import deque
-from itertools import count
 
 
 def parse_line(line):

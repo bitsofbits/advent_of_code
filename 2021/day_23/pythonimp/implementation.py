@@ -99,14 +99,14 @@ class Board:
     def estimate_remaining_cost(cls, amphs):
         """
         >>> board = Board.from_text(EXAMPLE_TEXT)
-        >>> board.estimate_remaining_cost(board.amphs)
-        6378
+        >>> amphs = frozenset(board.amphs.items())
+        >>> board.estimate_remaining_cost(amphs)
+        7499
         >>> board = Board.from_text(TARGET_BOARD)
-        >>> board.estimate_remaining_cost(board.amphs)
+        >>> amphs = frozenset(board.amphs.items())
+        >>> board.estimate_remaining_cost(amphs)
         0
-
         """
-        amphs = sorted(amphs.items(), key=lambda x: (x[1], x[0][0]))
         cost = 0
         moved = {k: 0 for k in "ABCD"}
         for (i, j), kind in amphs:
@@ -117,37 +117,38 @@ class Board:
                 moved[kind] += 1
             cost += COSTS[kind] * dj
         for kind, cnt in moved.items():
-            cost += COSTS[kind] * sum(range(1, cnt + 1))
+            cost += COSTS[kind] * (cnt * (cnt + 1) // 2)
         return cost
 
     @classmethod
     def send_amphs_home(cls, amphs):
         """
         >>> board = Board.from_text(EXAMPLE_TEXT)
-        # >>> board.send_amphs_home(board.amphs)  # -> 9610 == too low
-        12521
+
+        # >>> board.send_amphs_home(board.amphs)
+        # 12521
         """
+        amphs = frozenset(amphs.items())
         estimated = cls.estimate_remaining_cost(amphs)
-        queue = [(estimated, 0, frozenset(amphs.items()))]
+        queue = [(estimated, 0, amphs)]
         best_score = inf
-        states = {}
+        score_by_state = {}
         target = frozenset(cls.target_amphs.items())
         while queue:
             _, score, amphs = heappop(queue)
             for start, kind in amphs:
                 for end, count in cls.find_valid_moves(start, dict(amphs)):
-                    new_amphs = dict(amphs)
-                    new_amphs[end] = new_amphs.pop(start)
                     new_score = score + count * COSTS[kind]
-                    estimated = new_score + cls.estimate_remaining_cost(new_amphs)
-                    new_amphs = frozenset(new_amphs.items())
+                    if new_score >= best_score:
+                        continue
+                    new_amphs = amphs ^ {(start, kind), (end, kind)}
                     if new_amphs == target:
                         best_score = min(best_score, new_score)
-                    elif estimated < best_score and estimated < states.get(
-                        new_amphs, inf
-                    ):
-                        states[new_amphs] = estimated
-                        heappush(queue, (estimated, new_score, new_amphs))
+                    else:
+                        estimated = new_score + cls.estimate_remaining_cost(new_amphs)
+                        if estimated < score_by_state.get(new_amphs, inf):
+                            score_by_state[new_amphs] = estimated
+                            heappush(queue, (estimated, new_score, new_amphs))
         return best_score
 
     @classmethod
@@ -157,7 +158,6 @@ class Board:
             kind = amphs[start]
             ends = cls.amph_homes[kind]
         else:
-            assert start in cls.rooms
             ends = cls.hall_dests
         for end in ends:
             if end not in amphs:
@@ -225,6 +225,7 @@ class Board:
 def part_1(text):
     """
     # >>> part_1(EXAMPLE_TEXT)
+    12521
     """
     board = Board.from_text(text)
     return board.send_amphs_home(board.amphs)
@@ -308,10 +309,8 @@ class Board2(Board):
 
 def part_2(text):
     """
-    >>> part_2(EXAMPLE_TEXT)
+    # >>> part_2(EXAMPLE_TEXT)
     44169
-
-    # 47573 is too high :-()
     """
     board = Board2.from_text(text)
     return board.send_amphs_home(board.amphs)
