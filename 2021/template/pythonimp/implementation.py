@@ -18,8 +18,10 @@ def part_2(text):
 
 if __name__ == "__main__":
     import doctest
+    from pathlib import Path
 
-    with open("../data/example.txt") as f:
+    data_dir = Path(__file__).parents[1] / "data"
+    with open(data_dir / "example.txt") as f:
         EXAMPLE_TEXT = f.read()
 
     doctest.testmod()
