@@ -105,8 +105,8 @@ class Board:
         cost = 0
         moved = {k: 0 for k in "ABCD"}
         for (i, j), kind in amphs:
-            [loc, _] = cls.amph_homes[kind]
-            (_, target_j) = loc
+            candidates = sorted(cls.amph_homes[kind])
+            (_, target_j) = candidates[0]
             dj = abs(j - target_j)
             if dj > 0:
                 cost += COSTS[kind] * abs(i - 1)
@@ -248,16 +248,69 @@ def augment_text(text):
     return "\n".join(lines[:3] + ["  #D#C#B#A#", "  #D#B#A#C#"] + lines[3:])
 
 
+TARGET_BOARD2 = """\
+#############
+#...........#
+###A#B#C#D###
+  #A#B#C#D#
+  #A#B#C#D#
+  #A#B#C#D#
+  #########\
+"""
+
+
+class Board2(Board):
+    """
+    >>> board = Board2.from_text(EXAMPLE_TEXT)
+    >>> board
+    |#############|
+    |#...........#|
+    |###B#C#B#D###|
+    |  #D#C#B#A#  |
+    |  #D#B#A#C#  |
+    |  #A#D#C#A#  |
+    |  #########  |
+    >>> list(board.find_valid_moves((3, 3), board.amphs))
+    []
+    >>> len(list(board.find_valid_moves((2, 3), board.amphs)))
+    7
+    >>> len(board.rooms)
+    16
+    >>> len(board.amph_homes["A"])
+    4
+    """
+
+    walls, target_amphs, hall = parse(TARGET_BOARD2)
+    hall_dests = hall - {(1, 3), (1, 5), (1, 7), (1, 9)}
+    amph_homes = {k: set() for k in "ABCD"}
+    rooms = set(target_amphs)
+    for loc, a in target_amphs.items():
+        amph_homes[a].add(loc)
+    del loc, a
+
+    @classmethod
+    def from_text(cls, text):
+        walls, amphs, hall = parse(augment_text(text))
+        return cls(walls, amphs, hall)
+
+
 def part_2(text):
     """
-    # >>> part_2(EXAMPLE_TEXT)
+    >>> part_2(EXAMPLE_TEXT)
+    44169
+
+    # 47573 is too high :-()
     """
+    board = Board2.from_text(text)
+    return board.send_amphs_home(board.amphs)
 
 
 if __name__ == "__main__":
     import doctest
+    from pathlib import Path
 
-    with open("../data/example.txt") as f:
+    data_dir = Path(__file__).parents[1] / "data"
+    with open(data_dir / "example.txt") as f:
         EXAMPLE_TEXT = f.read()
 
     doctest.testmod()
