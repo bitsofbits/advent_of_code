@@ -48,25 +48,26 @@ class Board:
     |  #########  |
     """
 
-    walls, target_amphs, hall = parse(TARGET_BOARD)
-    hall_dests = hall - {(1, 3), (1, 5), (1, 7), (1, 9)}
-    amph_homes = {k: set() for k in "ABCD"}
-    rooms = set(target_amphs)
-    for loc, a in target_amphs.items():
-        amph_homes[a].add(loc)
-    amph_home_j = {}
-    for a, homes in amph_homes.items():
-        for (i, j) in homes:
-            assert j == amph_home_j.get(a, j) == j
-            amph_home_j[a] = j
-
-    del loc, homes, a, j
+    target_board = TARGET_BOARD
 
     def __init__(self, walls, amphs, hall):
         self.walls = walls
         self.initial_amphs = amphs.copy()
         self.amphs = amphs
         self.hall = hall
+        # Initialize endpoints using target board
+        (_, self.target_amphs, _) = parse(self.target_board)
+        self.hall_dests = hall - {(1, 3), (1, 5), (1, 7), (1, 9)}
+        self.amph_homes = {k: set() for k in "ABCD"}
+        self.rooms = set(self.target_amphs)
+        for loc, a in self.target_amphs.items():
+            self.amph_homes[a].add(loc)
+        self.amph_home_j = {}
+        for a, homes in self.amph_homes.items():
+            for (i, j) in homes:
+                assert j == self.amph_home_j.get(a, j) == j
+                self.amph_home_j[a] = j
+        self.amphs_per_type = len(self.rooms) // 4
 
     @classmethod
     def from_text(cls, text):
@@ -93,8 +94,7 @@ class Board:
             text += "|\n"
         return text[:-1]
 
-    @classmethod
-    def find_path(cls, start, end):
+    def find_path(self, start, end):
         """
         >>> board = Board.from_text(EXAMPLE_TEXT)
 
@@ -105,7 +105,7 @@ class Board:
         steps = set()
 
         # Walk into the hall
-        if start in cls.rooms:
+        if start in self.rooms:
             for i in range(i1 - 1, i2 - 1, -1):
                 steps.add((i, j))
             assert i == i2
@@ -117,19 +117,20 @@ class Board:
         assert j == j2
 
         # Walk into a rooms
-        if end in cls.rooms:
+        if end in self.rooms:
             for i in range(i + 1, i2 + 1):
                 steps.add((i, j))
         return steps
 
-    @classmethod
-    def built_adjacent(cls):
+    def built_adjacent(self):
         adjacent = {}
-        for i, j in cls.rooms:
+        for i, j in self.rooms:
             if i == 2:
-                adjacent[i, j] = {(1, j - 1), (1, j + 1)} & (cls.hall_dests | cls.rooms)
+                adjacent[i, j] = {(1, j - 1), (1, j + 1)} & (
+                    self.hall_dests | self.rooms
+                )
             else:
-                adjacent[i, j] = {(i - 1, j)} & (cls.hall_dests | cls.rooms)
+                adjacent[i, j] = {(i - 1, j)} & (self.hall_dests | self.rooms)
 
         adjacent[1, 1] = {(1, 2)}
         adjacent[1, 11] = {(1, 10)}
@@ -140,21 +141,25 @@ class Board:
         adjacent[1, 6] = {(2, 5), (2, 7), (1, 4), (1, 8)}
         return adjacent
 
-    @classmethod
-    def build_path_map(cls):
+    def build_path_map(self):
         path_map = {}
-        for start in cls.hall_dests:
-            for end in cls.rooms:
-                path_map[start, end] = cls.find_path(start, end)
-        for start in cls.rooms:
-            for end in cls.hall_dests:
-                path_map[start, end] = cls.find_path(start, end)
-        return {k: (v, len(v)) for (k, v) in path_map.items()}
+        for start in self.hall_dests:
+            for end in self.rooms:
+                path_map[start, end] = self.find_path(start, end)
+        for start in self.rooms:
+            for end in self.hall_dests:
+                path_map[start, end] = self.find_path(start, end)
+        path_map = {k: (v, len(v)) for (k, v) in path_map.items()}
+        indirect_map = {}
+        for s, e in path_map:
+            if s not in indirect_map:
+                indirect_map[s] = {}
+            indirect_map[s][e] = path_map[s, e]
+        return indirect_map
 
-    @classmethod
-    def build_visitor_mask(cls):
+    def build_visitor_mask(self):
         visitor_mask = {}
-        for kind, locs in cls.amph_homes.items():
+        for kind, locs in self.amph_homes.items():
             visitor_mask[kind] = set()
             for other_kind in "ABCD":
                 if kind != other_kind:
@@ -162,8 +167,30 @@ class Board:
                         visitor_mask[kind].add((loc, other_kind))
         return visitor_mask
 
-    @classmethod
-    def send_amphs_home(cls, amphs):
+    def estimate_initial_cost(self, amphs, amph_homesets):
+        estimate = 0
+        n0 = self.amphs_per_type
+        # Assume we have to move all items into final area
+        for kind in "ABCD":
+            estimate += COSTS[kind] * n0 * (n0 + 1) // 2
+        for (i, j), kind in amphs:
+            dj = abs(j - self.amph_home_j[kind])
+            estimate += COSTS[kind] * (dj + (dj > 0) * (i - 1))
+            # Subtract cost of items that are already there
+            estimate -= COSTS[kind] * (dj == 0) * (i - 1)
+
+        # for kind in "ABCD":
+        #     estimate += COSTS[kind] * n0 * (n0 + 1) // 2
+        return estimate
+
+    def build_homesets(self):
+        amph_homesets = {k: set() for k in "ABCD"}
+        for k, locs in self.amph_homes.items():
+            for loc in locs:
+                amph_homesets[k].add((loc, k))
+        return {k: frozenset(v) for (k, v) in amph_homesets.items()}
+
+    def send_amphs_home(self, amphs):
         """
         >>> board = Board.from_text(EXAMPLE_TEXT)
 
@@ -171,115 +198,80 @@ class Board:
         # 12521
         """
 
-        base_path_map = cls.build_path_map()
-        path_map = {}
-        for s, e in base_path_map:
-            if s not in path_map:
-                path_map[s] = {}
-            path_map[s][e] = base_path_map[s, e]
-        visitor_mask = cls.build_visitor_mask()
-
-        hall = cls.hall
-        amph_home_j = cls.amph_home_j
-        hall_dests = cls.hall_dests
-        amph_homes = cls.amph_homes
-
-        adjacent = cls.built_adjacent()
-        #
-
+        path_map = self.build_path_map()
+        visitor_mask = self.build_visitor_mask()
+        hall_dests = self.hall_dests
+        adjacent = self.built_adjacent()
+        amph_homesets = self.build_homesets()
         amphs = frozenset(amphs.items())
-
-        amph_homes = {k: set() for k in "ABCD"}
-        for k, locs in cls.amph_homes.items():
-            for loc in locs:
-                amph_homes[k].add((loc, k))
-        # amph_homes = {x for x in cls.amph_homes.items()}
-        estimated = 0
-        for (i, j), kind in amphs:
-            dj = abs(j - amph_home_j[kind])
-            estimated += COSTS[kind] * (dj + (dj > 0) * (i - 1))
-
-        n0 = len(amphs) // 4
-
-        for kind in "ABCD":
-            n = n0 - len(amphs & amph_homes[kind])
-            estimated += COSTS[kind] * n * (n + 1) // 2
-
-        opendests = frozenset(hall)
+        estimate = self.estimate_initial_cost(amphs, amph_homesets)
+        n0 = self.amphs_per_type
+        opendests = frozenset(self.hall)
 
         kind_props = {
-            k: (cls.amph_homes[k], visitor_mask[k], COSTS[k], amph_home_j[k])
+            k: (
+                amph_homesets[k],
+                self.amph_homes[k],
+                visitor_mask[k],
+                COSTS[k],
+                self.amph_home_j[k],
+            )
             for k in "ABCD"
         }
 
-        target = frozenset(cls.target_amphs.items())
+        target = frozenset(self.target_amphs.items())
 
-        queue = [(estimated, amphs, opendests)]
+        queue = [(estimate, amphs, opendests)]
         best_score = inf
         scores = {}
         while queue:
-            estimated, amphs, opendests = heappop(queue)
+            estimate, amphs, opendests = heappop(queue)
             for start, kind in amphs:
                 if adjacent[start] & opendests:
-                    homes, vmask, cost, target_j = kind_props[kind]
+                    # We can move from this position
+                    homeset, homes, vmask, cost, target_j = kind_props[kind]
                     if start in hall_dests:
                         if amphs & vmask:
                             continue
+                        # Try to move to the deepest available spot
                         ends = [max(homes & opendests)]
                     else:
                         ends = hall_dests & opendests
                         if not ends:
                             continue
 
-                    i, j = start
-                    dj = abs(j - target_j)
-                    n = n0 - len(amphs & amph_homes[kind])
-                    reduced_estimated = estimated - cost * (
-                        dj + (dj > 0) * (i - 1) + n * (n + 1) // 2
-                    )
+                    # Remove the part of the score associated with start
+                    if (dj := abs(start[1] - target_j)) == 0:
+                        half_est = estimate - cost * (dj - (start[0] - 1))
+                    else:
+                        half_est = estimate - cost * (dj + (start[0] - 1))
+
                     end_2_path = path_map[start]
                     for end in ends:
                         path, cnt = end_2_path[end]
                         if not path.issubset(opendests):
                             continue
-                        new_amphs = amphs ^ {(start, kind), (end, kind)}
-
-                        i, j = end
-                        dj = abs(j - target_j)
-                        n = n0 - len(new_amphs & amph_homes[kind])
-                        new_costs = cost * (
-                            dj + (dj > 0) * (i - 1) + n * (n + 1) // 2 + cnt
-                        )
-                        new_estimated = reduced_estimated + new_costs
-                        if new_estimated >= best_score:
+                        # Compute the new estimated score
+                        if (dj := abs(end[1] - target_j)) == 0:
+                            new_estimate = half_est + cost * (dj - (end[0] - 1) + cnt)
+                        else:
+                            new_estimate = half_est + cost * (dj + (end[0] - 1) + cnt)
+                        if new_estimate >= best_score:
                             continue
+                        new_amphs = amphs ^ {(start, kind), (end, kind)}
                         if new_amphs == target:
-                            best_score = min(best_score, new_estimated)
+                            best_score = min(best_score, new_estimate)
                         else:
                             if (
                                 new_amphs not in scores
-                                or new_estimated < scores[new_amphs]
+                                or new_estimate < scores[new_amphs]
                             ):
-                                scores[new_amphs] = new_estimated
-                                new_opendests = opendests ^ {start, end}
+                                scores[new_amphs] = new_estimate
                                 heappush(
                                     queue,
-                                    (new_estimated, new_amphs, new_opendests),
+                                    (new_estimate, new_amphs, opendests ^ {start, end}),
                                 )
         return best_score
-
-    @classmethod
-    def find_valid_moves(cls, start, kind, amphs, opendests):
-        if start in cls.hall_dests:
-            if amphs & cls.visitor_mask[kind]:
-                return
-            ends = cls.amph_homes[kind] & opendests
-        else:
-            ends = cls.hall_dests & opendests
-        for end in ends:
-            path = cls.path_map[start, end]
-            if len(path & opendests) == len(path):
-                yield end, len(path)
 
 
 def part_1(text):
@@ -340,18 +332,7 @@ class Board2(Board):
     |  #########  |
     """
 
-    walls, target_amphs, hall = parse(TARGET_BOARD2)
-    hall_dests = hall - {(1, 3), (1, 5), (1, 7), (1, 9)}
-    amph_homes = {k: set() for k in "ABCD"}
-    rooms = set(target_amphs)
-    for loc, a in target_amphs.items():
-        amph_homes[a].add(loc)
-    amph_home_j = {}
-    for a, homes in amph_homes.items():
-        for (i, j) in homes:
-            assert j == amph_home_j.get(a, j) == j
-            amph_home_j[a] = j
-    del loc, homes, a, j
+    target_board = TARGET_BOARD2
 
     @classmethod
     def from_text(cls, text):
