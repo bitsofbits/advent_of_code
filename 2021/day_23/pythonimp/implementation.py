@@ -1,4 +1,5 @@
-from heapq import heapify, heappop, heappush
+from functools import cache
+from heapq import heappop, heappush
 from math import inf
 
 TARGET_BOARD = """\
@@ -45,10 +46,7 @@ class Board:
     |###B#C#B#D###|
     |  #A#D#C#A#  |
     |  #########  |
-    >>> list(board.find_valid_moves((3, 3), board.amphs))
-    []
-    >>> len(list(board.find_valid_moves((2, 3), board.amphs)))
-    7
+    >>> len(board.hall_dests), len(board.rooms)
     """
 
     walls, target_amphs, hall = parse(TARGET_BOARD)
@@ -62,6 +60,7 @@ class Board:
         for (i, j) in homes:
             assert j == amph_home_j.get(a, j) == j
             amph_home_j[a] = j
+
     del loc, homes, a, j
 
     def __init__(self, walls, amphs, hall):
@@ -101,24 +100,47 @@ class Board:
         >>> board = Board.from_text(EXAMPLE_TEXT)
         >>> amphs = frozenset(board.amphs.items())
         >>> board.estimate_remaining_cost(amphs)
-        7499
+        7489
         >>> board = Board.from_text(TARGET_BOARD)
         >>> amphs = frozenset(board.amphs.items())
         >>> board.estimate_remaining_cost(amphs)
         0
         """
         cost = 0
-        moved = {k: 0 for k in "ABCD"}
         for (i, j), kind in amphs:
             target_j = cls.amph_home_j[kind]
             dj = abs(j - target_j)
-            if dj > 0:
-                cost += COSTS[kind] * abs(i - 1)
-                moved[kind] += 1
-            cost += COSTS[kind] * dj
-        for kind, cnt in moved.items():
-            cost += COSTS[kind] * (cnt * (cnt + 1) // 2)
+            cost += COSTS[kind] * (dj + (dj > 0) * i)  # Really (i - 1 + 1)
         return cost
+
+    @classmethod
+    def find_path(cls, start, end):
+        """
+        >>> board = Board.from_text(EXAMPLE_TEXT)
+
+        """
+        i1, j1 = start
+        i2, j2 = end
+        i, j = i1, j1
+        steps = set()
+
+        # Walk into the hall
+        if start in cls.rooms:
+            for i in range(i1 - 1, i2 - 1, -1):
+                steps.add((i, j))
+            assert i == i2
+
+        # Walk down the hall
+        dj = (j2 > j1) - (j1 > j2)
+        for j in range(j1 + dj, j2 + dj, dj):
+            steps.add((i, j))
+        assert j == j2
+
+        # Walk into a rooms
+        if end in cls.rooms:
+            for i in range(i + 1, i2 + 1):
+                steps.add((i, j))
+        return steps
 
     @classmethod
     def send_amphs_home(cls, amphs):
@@ -128,98 +150,111 @@ class Board:
         # >>> board.send_amphs_home(board.amphs)
         # 12521
         """
+        paths = {}
+        for start in cls.hall_dests:
+            for end in cls.rooms:
+                paths[start, end] = cls.find_path(start, end)
+        for start in cls.rooms:
+            for end in cls.hall_dests:
+                paths[start, end] = cls.find_path(start, end)
+
+        visitor_mask = {}
+        for kind, locs in cls.amph_homes.items():
+            visitor_mask[kind] = set()
+            for other_kind in "ABCD":
+                if kind != other_kind:
+                    for loc in locs:
+                        visitor_mask[kind].add((loc, other_kind))
+        cls.visitor_mask = visitor_mask
+
+        print("A")
+
+        cls.path_map = paths
+
         amphs = frozenset(amphs.items())
         estimated = cls.estimate_remaining_cost(amphs)
-        queue = [(estimated, 0, amphs)]
+        opendests = frozenset(cls.hall)  # opecells
+
+        queue = [(estimated, 0, amphs, opendests)]
         best_score = inf
         score_by_state = {}
         target = frozenset(cls.target_amphs.items())
         while queue:
-            _, score, amphs = heappop(queue)
+            _, score, amphs, opendests = heappop(queue)
             for start, kind in amphs:
-                for end, count in cls.find_valid_moves(start, dict(amphs)):
+                for end, count in cls.find_valid_moves(start, kind, amphs, opendests):
                     new_score = score + count * COSTS[kind]
                     if new_score >= best_score:
                         continue
                     new_amphs = amphs ^ {(start, kind), (end, kind)}
+                    new_opendests = opendests ^ {start, end}
                     if new_amphs == target:
                         best_score = min(best_score, new_score)
                     else:
                         estimated = new_score + cls.estimate_remaining_cost(new_amphs)
                         if estimated < score_by_state.get(new_amphs, inf):
                             score_by_state[new_amphs] = estimated
-                            heappush(queue, (estimated, new_score, new_amphs))
+                            heappush(
+                                queue,
+                                (
+                                    estimated,
+                                    new_score,
+                                    new_amphs,
+                                    new_opendests,
+                                    # new_home_counts,
+                                ),
+                            )
         return best_score
 
     @classmethod
-    def find_valid_moves(cls, start, amphs):
-        # Can't stop in front of the hallway
+    def find_valid_moves(cls, start, kind, amphs, opendests):
         if start in cls.hall_dests:
-            kind = amphs[start]
-            ends = cls.amph_homes[kind]
+            if amphs & cls.visitor_mask[kind]:
+                return
+            ends = cls.amph_homes[kind] & opendests
         else:
-            ends = cls.hall_dests
+            ends = cls.hall_dests & opendests
         for end in ends:
-            if end not in amphs:
-                count = cls.valid_move_count(start, end, amphs)
-                if count > 0:
-                    yield end, count
+            path = cls.path_map[start, end]
+            if len(path & opendests) == len(path):  # TODO: need filled_dests?
+                yield end, len(path)
+            # # count = cls.valid_move_count(start, end, opendests)
+            # if count > 0:
+            #     yield (end, count)
 
-    @classmethod
-    def valid_move_count(cls, start, end, amphs):
-        """
-        >>> board = Board.from_text(EXAMPLE_TEXT)
-        >>> board.valid_move_count((2, 5), (1, 2), board.amphs)
-        4
-        >>> amphs = board.amphs.copy()
-        >>> amphs[(1, 1)] = amphs.pop((2, 5))
-        >>> amphs[(1, 2)] = amphs.pop((3, 5))
-        >>> board.valid_move_count((2, 7), (1, 6), amphs)
-        2
-        >>> amphs[1, 6] = amphs.pop((2, 7))
-        >>> board.valid_move_count((1, 6), (3, 5), amphs)
-        3
-        """
-        i1, j1 = start
-        i2, j2 = end
-        kind = amphs[start]
-        target_rooms = cls.amph_homes[kind]
+    # @classmethod
+    # def valid_move_count(cls, start, end, opendests):
+    #     """
+    #     >>> board = Board.from_text(EXAMPLE_TEXT)
 
-        if start in cls.hall:
-            assert end in target_rooms
-            for loc in cls.amph_homes[kind]:
-                if amphs.get(loc, kind) != kind:
-                    # Can only move into rooms if no "foreign" amphs present
-                    return 0
+    #     """
+    #     i1, j1 = start
+    #     i2, j2 = end
+    #     cnt = 0
+    #     i, j = i1, j1
+    #     if start in cls.rooms:
+    #         # Walk into the hall
+    #         for i in range(i1 - 1, i2 - 1, -1):
+    #             cnt += 1
+    #             if (i, j) not in opendests:
+    #                 return 0
+    #         assert i == i2
 
-        if start in cls.rooms:
-            assert end in cls.hall
+    #     # Walk down the hall
+    #     dj = (j2 > j1) - (j1 > j2)
+    #     for j in range(j1 + dj, j2 + dj, dj):
+    #         cnt += 1
+    #         if (i, j) not in opendests:
+    #             return 0
+    #     assert j == j2
 
-        cnt = 0
-        i, j = i1, j1
-        if start in cls.rooms:
-            # Walk into the hall
-            for i in range(i1 - 1, i2 - 1, -1):
-                cnt += 1
-                if (i, j) in amphs:
-                    return 0
-            assert i == i2
+    #     if end in cls.rooms:
+    #         for i in range(i + 1, i2 + 1):
+    #             cnt += 1
+    #             if (i, j) not in opendests:
+    #                 return 0
 
-        # Walk down the hall
-        dj = (j2 > j1) - (j1 > j2)
-        for j in range(j1 + dj, j2 + dj, dj):
-            cnt += 1
-            if (i, j) in amphs:
-                return 0
-        assert j == j2
-
-        if end in cls.rooms:
-            for i in range(i + 1, i2 + 1):
-                cnt += 1
-                if (i, j) in amphs:
-                    return 0
-
-        return cnt
+    #     return cnt
 
 
 def part_1(text):
@@ -278,14 +313,6 @@ class Board2(Board):
     |  #D#B#A#C#  |
     |  #A#D#C#A#  |
     |  #########  |
-    >>> list(board.find_valid_moves((3, 3), board.amphs))
-    []
-    >>> len(list(board.find_valid_moves((2, 3), board.amphs)))
-    7
-    >>> len(board.rooms)
-    16
-    >>> len(board.amph_homes["A"])
-    4
     """
 
     walls, target_amphs, hall = parse(TARGET_BOARD2)
