@@ -110,7 +110,7 @@ class Board:
         for (i, j), kind in amphs:
             target_j = cls.amph_home_j[kind]
             dj = abs(j - target_j)
-            cost += COSTS[kind] * (dj + (dj > 0) * i)  # Really (i - 1 + 1)
+            cost += COSTS[kind] * (dj)  # + (dj > 0) * i)  # Really (i - 1 + 1)
         return cost
 
     @classmethod
@@ -150,13 +150,13 @@ class Board:
         # >>> board.send_amphs_home(board.amphs)
         # 12521
         """
-        paths = {}
+        path_map = {}
         for start in cls.hall_dests:
             for end in cls.rooms:
-                paths[start, end] = cls.find_path(start, end)
+                path_map[start, end] = cls.find_path(start, end)
         for start in cls.rooms:
             for end in cls.hall_dests:
-                paths[start, end] = cls.find_path(start, end)
+                path_map[start, end] = cls.find_path(start, end)
 
         visitor_mask = {}
         for kind, locs in cls.amph_homes.items():
@@ -165,39 +165,62 @@ class Board:
                 if kind != other_kind:
                     for loc in locs:
                         visitor_mask[kind].add((loc, other_kind))
-        cls.visitor_mask = visitor_mask
 
-        print("A")
+        # amph_homes = cls.amph_homes
+        hall = cls.hall
+        target_amphs = cls.target_amphs
+        amph_home_j = cls.amph_home_j
+        hall_dests = cls.hall_dests
+        amph_homes = cls.amph_homes
 
-        cls.path_map = paths
+        #
 
         amphs = frozenset(amphs.items())
         estimated = cls.estimate_remaining_cost(amphs)
-        opendests = frozenset(cls.hall)  # opecells
+        opendests = frozenset(hall)  # opecells
 
         queue = [(estimated, 0, amphs, opendests)]
         best_score = inf
         score_by_state = {}
-        target = frozenset(cls.target_amphs.items())
+        target = frozenset(target_amphs.items())
         while queue:
-            _, score, amphs, opendests = heappop(queue)
+            estimated, score, amphs, opendests = heappop(queue)
             for start, kind in amphs:
-                for end, count in cls.find_valid_moves(start, kind, amphs, opendests):
-                    new_score = score + count * COSTS[kind]
+                if start in hall_dests:
+                    if amphs & visitor_mask[kind]:
+                        continue
+                    ends = sorted(amph_homes[kind] & opendests)[-1:]
+                else:
+                    ends = hall_dests & opendests
+                for end in ends:
+                    path = path_map[start, end]
+                    if len(path & opendests) < len(path):
+                        continue
+
+                    cost = len(path) * COSTS[kind]
+                    new_score = score + cost
                     if new_score >= best_score:
                         continue
                     new_amphs = amphs ^ {(start, kind), (end, kind)}
-                    new_opendests = opendests ^ {start, end}
                     if new_amphs == target:
                         best_score = min(best_score, new_score)
                     else:
-                        estimated = new_score + cls.estimate_remaining_cost(new_amphs)
-                        if estimated < score_by_state.get(new_amphs, inf):
-                            score_by_state[new_amphs] = estimated
+                        target_j = amph_home_j[kind]
+                        dj = abs(start[1] - target_j)
+                        less = COSTS[kind] * dj
+                        # (
+                        #     dj + (dj > 0) * (start[0] - 1) + (start[0] == 1)
+                        # )
+                        dj = abs(end[1] - target_j)
+                        more = COSTS[kind] * dj
+                        new_estimated = estimated + cost - less + more
+                        if new_estimated < score_by_state.get(new_amphs, inf):
+                            score_by_state[new_amphs] = new_estimated
+                            new_opendests = opendests ^ {start, end}
                             heappush(
                                 queue,
                                 (
-                                    estimated,
+                                    new_estimated,
                                     new_score,
                                     new_amphs,
                                     new_opendests,
@@ -216,11 +239,8 @@ class Board:
             ends = cls.hall_dests & opendests
         for end in ends:
             path = cls.path_map[start, end]
-            if len(path & opendests) == len(path):  # TODO: need filled_dests?
+            if len(path & opendests) == len(path):
                 yield end, len(path)
-            # # count = cls.valid_move_count(start, end, opendests)
-            # if count > 0:
-            #     yield (end, count)
 
     # @classmethod
     # def valid_move_count(cls, start, end, opendests):
