@@ -46,7 +46,6 @@ class Board:
     |###B#C#B#D###|
     |  #A#D#C#A#  |
     |  #########  |
-    >>> len(board.hall_dests), len(board.rooms)
     """
 
     walls, target_amphs, hall = parse(TARGET_BOARD)
@@ -93,25 +92,6 @@ class Board:
                     text += " "
             text += "|\n"
         return text[:-1]
-
-    @classmethod
-    def estimate_remaining_cost(cls, amphs):
-        """
-        >>> board = Board.from_text(EXAMPLE_TEXT)
-        >>> amphs = frozenset(board.amphs.items())
-        >>> board.estimate_remaining_cost(amphs)
-        7489
-        >>> board = Board.from_text(TARGET_BOARD)
-        >>> amphs = frozenset(board.amphs.items())
-        >>> board.estimate_remaining_cost(amphs)
-        0
-        """
-        cost = 0
-        for (i, j), kind in amphs:
-            target_j = cls.amph_home_j[kind]
-            dj = abs(j - target_j)
-            cost += COSTS[kind] * (dj)  # + (dj > 0) * i)  # Really (i - 1 + 1)
-        return cost
 
     @classmethod
     def find_path(cls, start, end):
@@ -173,47 +153,64 @@ class Board:
         hall_dests = cls.hall_dests
         amph_homes = cls.amph_homes
 
+        adjacent = {}
+        for i, j in cls.rooms:
+            if i == 2:
+                adjacent[i, j] = {(1, j - 1), (1, j + 1)}
+            else:
+                adjacent[i, j] = {(i - 1, j)}
+        adjacent[1, 1] = {(1, 2)}
+        adjacent[1, 11] = {(1, 10)}
+        adjacent[1, 2] = {(2, 3), (1, 4)}
+        adjacent[1, 10] = {(2, 9), (1, 8)}
+        adjacent[1, 4] = {(2, 3), (2, 5), (1, 6)}
+        adjacent[1, 8] = {(2, 9), (2, 7), (1, 6)}
+        adjacent[1, 6] = {(2, 5), (2, 7), (1, 4), (1, 8)}
+
         #
 
         amphs = frozenset(amphs.items())
-        estimated = cls.estimate_remaining_cost(amphs)
+        estimated = 0
+        for (i, j), kind in amphs:
+            dj = abs(j - amph_home_j[kind])
+            estimated += COSTS[kind] * dj
         opendests = frozenset(hall)  # opecells
 
-        queue = [(estimated, 0, amphs, opendests)]
+        queue = [(estimated, amphs, opendests)]
         best_score = inf
         score_by_state = {}
         target = frozenset(target_amphs.items())
         while queue:
-            estimated, score, amphs, opendests = heappop(queue)
+            estimated, amphs, opendests = heappop(queue)
             for start, kind in amphs:
+                if not adjacent[start] & opendests:
+                    continue
                 if start in hall_dests:
                     if amphs & visitor_mask[kind]:
                         continue
-                    ends = sorted(amph_homes[kind] & opendests)[-1:]
+                    ends = [max(amph_homes[kind] & opendests)]
                 else:
                     ends = hall_dests & opendests
+                if not ends:
+                    continue
+                target_j = amph_home_j[kind]
+                dj = abs(start[1] - target_j)
+                reduced_estimated = estimated - COSTS[kind] * dj
                 for end in ends:
                     path = path_map[start, end]
-                    if len(path & opendests) < len(path):
+                    if not path.issubset(opendests):
                         continue
 
                     cost = len(path) * COSTS[kind]
-                    new_score = score + cost
-                    if new_score >= best_score:
+                    # new_score = score + cost
+                    dj = abs(end[1] - target_j)
+                    new_estimated = reduced_estimated + cost + COSTS[kind] * dj
+                    if new_estimated >= best_score:
                         continue
                     new_amphs = amphs ^ {(start, kind), (end, kind)}
                     if new_amphs == target:
-                        best_score = min(best_score, new_score)
+                        best_score = min(best_score, new_estimated)
                     else:
-                        target_j = amph_home_j[kind]
-                        dj = abs(start[1] - target_j)
-                        less = COSTS[kind] * dj
-                        # (
-                        #     dj + (dj > 0) * (start[0] - 1) + (start[0] == 1)
-                        # )
-                        dj = abs(end[1] - target_j)
-                        more = COSTS[kind] * dj
-                        new_estimated = estimated + cost - less + more
                         if new_estimated < score_by_state.get(new_amphs, inf):
                             score_by_state[new_amphs] = new_estimated
                             new_opendests = opendests ^ {start, end}
@@ -221,10 +218,8 @@ class Board:
                                 queue,
                                 (
                                     new_estimated,
-                                    new_score,
                                     new_amphs,
                                     new_opendests,
-                                    # new_home_counts,
                                 ),
                             )
         return best_score
@@ -242,44 +237,10 @@ class Board:
             if len(path & opendests) == len(path):
                 yield end, len(path)
 
-    # @classmethod
-    # def valid_move_count(cls, start, end, opendests):
-    #     """
-    #     >>> board = Board.from_text(EXAMPLE_TEXT)
-
-    #     """
-    #     i1, j1 = start
-    #     i2, j2 = end
-    #     cnt = 0
-    #     i, j = i1, j1
-    #     if start in cls.rooms:
-    #         # Walk into the hall
-    #         for i in range(i1 - 1, i2 - 1, -1):
-    #             cnt += 1
-    #             if (i, j) not in opendests:
-    #                 return 0
-    #         assert i == i2
-
-    #     # Walk down the hall
-    #     dj = (j2 > j1) - (j1 > j2)
-    #     for j in range(j1 + dj, j2 + dj, dj):
-    #         cnt += 1
-    #         if (i, j) not in opendests:
-    #             return 0
-    #     assert j == j2
-
-    #     if end in cls.rooms:
-    #         for i in range(i + 1, i2 + 1):
-    #             cnt += 1
-    #             if (i, j) not in opendests:
-    #                 return 0
-
-    #     return cnt
-
 
 def part_1(text):
     """
-    # >>> part_1(EXAMPLE_TEXT)
+    >>> part_1(EXAMPLE_TEXT)
     12521
     """
     board = Board.from_text(text)
@@ -356,7 +317,7 @@ class Board2(Board):
 
 def part_2(text):
     """
-    # >>> part_2(EXAMPLE_TEXT)
+    >>> part_2(EXAMPLE_TEXT)
     44169
     """
     board = Board2.from_text(text)
