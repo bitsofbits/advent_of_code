@@ -123,42 +123,14 @@ class Board:
         return steps
 
     @classmethod
-    def send_amphs_home(cls, amphs):
-        """
-        >>> board = Board.from_text(EXAMPLE_TEXT)
-
-        # >>> board.send_amphs_home(board.amphs)
-        # 12521
-        """
-        path_map = {}
-        for start in cls.hall_dests:
-            for end in cls.rooms:
-                path_map[start, end] = cls.find_path(start, end)
-        for start in cls.rooms:
-            for end in cls.hall_dests:
-                path_map[start, end] = cls.find_path(start, end)
-
-        visitor_mask = {}
-        for kind, locs in cls.amph_homes.items():
-            visitor_mask[kind] = set()
-            for other_kind in "ABCD":
-                if kind != other_kind:
-                    for loc in locs:
-                        visitor_mask[kind].add((loc, other_kind))
-
-        # amph_homes = cls.amph_homes
-        hall = cls.hall
-        target_amphs = cls.target_amphs
-        amph_home_j = cls.amph_home_j
-        hall_dests = cls.hall_dests
-        amph_homes = cls.amph_homes
-
+    def built_adjacent(cls):
         adjacent = {}
         for i, j in cls.rooms:
             if i == 2:
-                adjacent[i, j] = {(1, j - 1), (1, j + 1)}
+                adjacent[i, j] = {(1, j - 1), (1, j + 1)} & (cls.hall_dests | cls.rooms)
             else:
-                adjacent[i, j] = {(i - 1, j)}
+                adjacent[i, j] = {(i - 1, j)} & (cls.hall_dests | cls.rooms)
+
         adjacent[1, 1] = {(1, 2)}
         adjacent[1, 11] = {(1, 10)}
         adjacent[1, 2] = {(2, 3), (1, 4)}
@@ -166,62 +138,134 @@ class Board:
         adjacent[1, 4] = {(2, 3), (2, 5), (1, 6)}
         adjacent[1, 8] = {(2, 9), (2, 7), (1, 6)}
         adjacent[1, 6] = {(2, 5), (2, 7), (1, 4), (1, 8)}
+        return adjacent
 
+    @classmethod
+    def build_path_map(cls):
+        path_map = {}
+        for start in cls.hall_dests:
+            for end in cls.rooms:
+                path_map[start, end] = cls.find_path(start, end)
+        for start in cls.rooms:
+            for end in cls.hall_dests:
+                path_map[start, end] = cls.find_path(start, end)
+        return {k: (v, len(v)) for (k, v) in path_map.items()}
+
+    @classmethod
+    def build_visitor_mask(cls):
+        visitor_mask = {}
+        for kind, locs in cls.amph_homes.items():
+            visitor_mask[kind] = set()
+            for other_kind in "ABCD":
+                if kind != other_kind:
+                    for loc in locs:
+                        visitor_mask[kind].add((loc, other_kind))
+        return visitor_mask
+
+    @classmethod
+    def send_amphs_home(cls, amphs):
+        """
+        >>> board = Board.from_text(EXAMPLE_TEXT)
+
+        # >>> board.send_amphs_home(board.amphs)
+        # 12521
+        """
+
+        base_path_map = cls.build_path_map()
+        path_map = {}
+        for s, e in base_path_map:
+            if s not in path_map:
+                path_map[s] = {}
+            path_map[s][e] = base_path_map[s, e]
+        visitor_mask = cls.build_visitor_mask()
+
+        hall = cls.hall
+        amph_home_j = cls.amph_home_j
+        hall_dests = cls.hall_dests
+        amph_homes = cls.amph_homes
+
+        adjacent = cls.built_adjacent()
         #
 
         amphs = frozenset(amphs.items())
+
+        amph_homes = {k: set() for k in "ABCD"}
+        for k, locs in cls.amph_homes.items():
+            for loc in locs:
+                amph_homes[k].add((loc, k))
+        # amph_homes = {x for x in cls.amph_homes.items()}
         estimated = 0
         for (i, j), kind in amphs:
             dj = abs(j - amph_home_j[kind])
-            estimated += COSTS[kind] * dj
-        opendests = frozenset(hall)  # opecells
+            estimated += COSTS[kind] * (dj + (dj > 0) * (i - 1))
+
+        n0 = len(amphs) // 4
+
+        for kind in "ABCD":
+            n = n0 - len(amphs & amph_homes[kind])
+            estimated += COSTS[kind] * n * (n + 1) // 2
+
+        opendests = frozenset(hall)
+
+        kind_props = {
+            k: (cls.amph_homes[k], visitor_mask[k], COSTS[k], amph_home_j[k])
+            for k in "ABCD"
+        }
+
+        target = frozenset(cls.target_amphs.items())
 
         queue = [(estimated, amphs, opendests)]
         best_score = inf
-        score_by_state = {}
-        target = frozenset(target_amphs.items())
+        scores = {}
         while queue:
             estimated, amphs, opendests = heappop(queue)
             for start, kind in amphs:
-                if not adjacent[start] & opendests:
-                    continue
-                if start in hall_dests:
-                    if amphs & visitor_mask[kind]:
-                        continue
-                    ends = [max(amph_homes[kind] & opendests)]
-                else:
-                    ends = hall_dests & opendests
-                if not ends:
-                    continue
-                target_j = amph_home_j[kind]
-                dj = abs(start[1] - target_j)
-                reduced_estimated = estimated - COSTS[kind] * dj
-                for end in ends:
-                    path = path_map[start, end]
-                    if not path.issubset(opendests):
-                        continue
-
-                    cost = len(path) * COSTS[kind]
-                    # new_score = score + cost
-                    dj = abs(end[1] - target_j)
-                    new_estimated = reduced_estimated + cost + COSTS[kind] * dj
-                    if new_estimated >= best_score:
-                        continue
-                    new_amphs = amphs ^ {(start, kind), (end, kind)}
-                    if new_amphs == target:
-                        best_score = min(best_score, new_estimated)
+                if adjacent[start] & opendests:
+                    homes, vmask, cost, target_j = kind_props[kind]
+                    if start in hall_dests:
+                        if amphs & vmask:
+                            continue
+                        ends = [max(homes & opendests)]
                     else:
-                        if new_estimated < score_by_state.get(new_amphs, inf):
-                            score_by_state[new_amphs] = new_estimated
-                            new_opendests = opendests ^ {start, end}
-                            heappush(
-                                queue,
-                                (
-                                    new_estimated,
-                                    new_amphs,
-                                    new_opendests,
-                                ),
-                            )
+                        ends = hall_dests & opendests
+                        if not ends:
+                            continue
+
+                    i, j = start
+                    dj = abs(j - target_j)
+                    n = n0 - len(amphs & amph_homes[kind])
+                    reduced_estimated = estimated - cost * (
+                        dj + (dj > 0) * (i - 1) + n * (n + 1) // 2
+                    )
+                    end_2_path = path_map[start]
+                    for end in ends:
+                        path, cnt = end_2_path[end]
+                        if not path.issubset(opendests):
+                            continue
+                        new_amphs = amphs ^ {(start, kind), (end, kind)}
+
+                        i, j = end
+                        dj = abs(j - target_j)
+                        n = n0 - len(new_amphs & amph_homes[kind])
+                        new_costs = cost * (
+                            dj + (dj > 0) * (i - 1) + n * (n + 1) // 2 + cnt
+                        )
+                        new_estimated = reduced_estimated + new_costs
+                        if new_estimated >= best_score:
+                            continue
+                        if new_amphs == target:
+                            best_score = min(best_score, new_estimated)
+                        else:
+                            if (
+                                new_amphs not in scores
+                                or new_estimated < scores[new_amphs]
+                            ):
+                                scores[new_amphs] = new_estimated
+                                new_opendests = opendests ^ {start, end}
+                                heappush(
+                                    queue,
+                                    (new_estimated, new_amphs, new_opendests),
+                                )
         return best_score
 
     @classmethod
