@@ -26,40 +26,23 @@ end
 @assert part_1("^v^v^v^v^v") == 2
 
 function part_2(text)
-    i1 = 0
-    j1 = 0
-    i2 = 0
-    j2 = 0
+    i = [0, 0]
+    j = [0, 0]
     map = Set([(0, 0)])
     for (ndx, c) in enumerate(strip(text))
-        # Clunky! Would be better to iterate by pairs or or have an array
-        if ndx % 2 == 0
-            i = i1
-            j = j1
-        else
-            i = i2
-            j = j2
-        end
         if c == '>'
-            j += 1
+            j[ndx % 2 + 1] += 1
         elseif c == '<'
-            j -= 1
+            j[ndx % 2 + 1] -= 1
         elseif c == 'v'
-            i += 1
+            i[ndx % 2 + 1] += 1
         elseif c == '^'
-            i -= 1
+            i[ndx % 2 + 1] -= 1
         else
             error("unknown character $c")
         end
-        if  !in((i, j), map)
-            push!(map, (i, j))
-        end
-        if ndx % 2 == 0
-            i1 = i
-            j1 = j
-        else
-            i2 = i
-            j2 = j
+        if  !in((i[ndx % 2 + 1] , j[ndx % 2 + 1] ), map)
+            push!(map, (i[ndx % 2 + 1] , j[ndx % 2 + 1] ))
         end
     end
     return length(map)
