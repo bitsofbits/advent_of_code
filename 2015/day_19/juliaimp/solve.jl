@@ -40,38 +40,11 @@ function part_1(text)
     return length(create(molecule, replacements))
 end
 
-
-function synthesize(replacements, target)
-    pending = [("e", 0)]
-    seen = Set()
-    best = typemax(Int)
-    while length(pending) > 0
-        m, cnt = pop!(pending)
-        if m == target
-            best = min(best, cnt)
-        end
-        for m1 in create(m, replacements)
-            if m1 in seen
-                continue
-            end
-            push!(seen, m1)
-            if length(m1) > length(target)
-                # Molecules never get shorter
-                continue
-            end
-            push!(pending, (m1, cnt + 1))
-        end
-    end
-    return best
-end
-
-
 function unsynthesize(revrep, target)
-    pending = [(target, 0, mlen(target))]
-    seen = Dict()
+    pending = [(target, 0)]
     max_repl = maximum([length(x) for x in keys(revrep)])
     while length(pending) > 0
-        m, cnt, ml = pop!(pending)
+        m, cnt = pop!(pending)
         if m == "e"
             # Not entirely happy with this; wanted to do a general
             # solution, but I'm just assuming a greedy solution works here.
@@ -89,26 +62,12 @@ function unsynthesize(revrep, target)
                     if (r == "e") && (m1 != "e")
                         continue
                     end
-                    ml1 = ml + mlen(r) - mlen(k)
-                    if get(seen, m1, typemax(Int)) <= cnt + ml1 + 1
-                        continue
-                    end
-                    seen[m1] = cnt + ml1 + 1
-                    push!(pending, (m1, cnt + 1, cnt + 1 + ml1))
+                    push!(pending, (m1, cnt + 1))
                 end
             end
         end
     end
     return cnt
-end
-
-
-function isupper(x)
-    return 'A' <= x && x <= 'Z'
-end
-
-function mlen(molecule)
-    return sum(1 for x in molecule if isupper(x); init=0)
 end
 
 
