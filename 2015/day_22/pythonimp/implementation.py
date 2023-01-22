@@ -51,6 +51,8 @@ def apply_effects(mage, boss, effects):
     return mage, boss, new_effects
 
 
+# Kind of messy -- this would probably be simpler to implement recursively and maybe
+# not even slower.
 def solve(boss, hard=False):
     mage = Mage()
     lowest_mana_cost = math.inf
