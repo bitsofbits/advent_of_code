@@ -9,7 +9,7 @@ def parse_chunk(chunk):
     _, a, b = chunk.strip().split()
     if "-" in a:
         a, _ = a.split("-")
-    b = b.strip(",")
+    b = b.strip(",")  # Take care of Oxford comma
     assert b in {"microchip", "generator"}, b
     return (a, b)
 
