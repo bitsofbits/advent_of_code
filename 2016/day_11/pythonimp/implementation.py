@@ -81,11 +81,13 @@ def move_stuff(starting_floors):
     assert len(starting_floors) == 4
     item_count = sum(len(x) for x in starting_floors)
     lowest_cnt = inf
+    initial_est = sum((3 - i) * len(x) / 2 for (i, x) in enumerate(starting_floors))
     states = {}
-    queue = [(0, 0, starting_floors)]
+    queue = [(initial_est, 0, 0, starting_floors)]
     while queue:
-        cnt, flr, floors = heappop(queue)
+        estimate, cnt, flr, floors = heappop(queue)
         if len(floors[3]) == item_count:
+            assert estimate == cnt
             lowest_cnt = min(cnt, lowest_cnt)
             continue
         next_cnt = cnt + 1
@@ -110,7 +112,8 @@ def move_stuff(starting_floors):
                     if next_cnt >= states.get(key, inf):
                         continue
                     states[key] = next_cnt
-                    heappush(queue, (next_cnt, next_flr, next_floors))
+                    next_estimate = estimate + 1 - (next_flr - flr) * len(moved) / 2
+                    heappush(queue, (next_estimate, next_cnt, next_flr, next_floors))
     return lowest_cnt
 
 
