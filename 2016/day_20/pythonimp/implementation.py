@@ -32,28 +32,6 @@ def valid_ranges(text, n_ip):
     yield (bounds[-1], n_ip)
 
 
-# def valid_ip(text, n_ip):
-#     for x in valid_ranges(text, n_ip):
-#         print(x)
-
-#     used_ranges = sorted(parse(text))
-#     range_keys = [a for (a, b) in used_ranges]
-#     rangemap = {}
-#     for a in sorted(set(a for (a, b) in used_ranges)):
-#         j = bisect_right(range_keys, a)
-#         rangemap[j] = sorted(used_ranges[:j], key=lambda x: x[1])
-
-#     for i in range(n_ip):
-#         j = bisect_right(range_keys, i)
-#         rngs = rangemap[j]
-#         k = bisect_left(rngs, i, key=lambda x: x[1])
-#         for a, b in rngs[k:]:
-#             if i >= a and i <= b:
-#                 break
-#         else:
-#             yield i
-
-
 def part_1(text, n_ip=4294967296):
     """
     >>> part_1(EXAMPLE_TEXT)
