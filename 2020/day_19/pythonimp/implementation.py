@@ -59,31 +59,51 @@ def parse(text):
 #     return False
 
 
+@cache
 def partition(tokens, n):
     m = len(tokens)
     match n:
         case 1:
-            yield (tokens,)
+            return [(tokens,)]
         case 2:
-            for i in range(1, m):
-                yield (tokens[:i], tokens[i:])
+            return [(tokens[:i], tokens[i:]) for i in range(1, m)]
         case 3:
-            for i in range(1, m - 1):
-                for j in range(i + 1, m):
-                    yield (tokens[:i], tokens[i:j], tokens[j:])
+            return [
+                (tokens[:i], tokens[i:j], tokens[j:])
+                for i in range(1, m - 1)
+                for j in range(i + 1, m)
+            ]
         case _:
             raise ValueError(n)
 
 
 def match(tokens, rules, target):
     @cache
-    def _match(tokens, target):
-        if isinstance(target, str):
-            return (target,) == tokens
-        for r in rules[target]:
-            for subtokens in partition(tokens, len(r)):
-                if all(_match(tkn, tgt) for (tkn, tgt) in zip(subtokens, r)):
-                    return True
+    def _match(tkns, tgt):
+        for r in rules[tgt]:
+            n = len(tkns)
+            match r:
+                case (r0,):
+                    if _match(tkns, r0):
+                        return True
+                case (r0, r1):
+                    for i in range(1, n):
+                        if _match(tkns[:i], r0) and _match(tkns[i:], r1):
+                            return True
+                case (r0, r1, r2):
+                    for i in range(1, n - 1):
+                        for j in range(i + 1, n):
+                            if (
+                                _match(tkns[:i], r0)
+                                and _match(tkns[i:j], r1)
+                                and _match(tkns[j:], r2)
+                            ):
+                                return True
+                case r if isinstance(r, str):
+                    if (r,) == tkns:
+                        return True
+                case _:
+                    raise ValueError(r)
         return False
 
     return _match(tokens, target)
@@ -95,12 +115,7 @@ def part_1(text):
     2
     """
     rules, messages = parse(text)
-    total = 0
-    for msg in messages:
-        tokens = tuple(msg)
-        is_matched = match(tokens, rules, 0)
-        total += is_matched
-    return total
+    return sum(match(tuple(msg), rules, 0) for msg in messages)
 
 
 EXTRA_RULES = """
@@ -117,12 +132,7 @@ def part_2(text):
     new_rules = dict(parse_rule(x) for x in EXTRA_RULES.strip().split("\n"))
     rules, messages = parse(text)
     rules.update(new_rules)
-    total = 0
-    for msg in messages:
-        tokens = tuple(msg)
-        is_matched = match(tokens, rules, 0)
-        total += is_matched
-    return total
+    return sum(match(tuple(msg), rules, 0) for msg in messages)
 
 
 if __name__ == "__main__":
