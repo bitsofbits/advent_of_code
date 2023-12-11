@@ -1,3 +1,4 @@
+import math
 from itertools import count, cycle
 
 
@@ -23,12 +24,12 @@ def part_1(text):
     """
     instructions, node_map = parse(text)
     node = "AAA"
-    for count, instruction in enumerate(cycle(instructions)):
+    for n_steps, instruction in enumerate(cycle(instructions)):
         if node == "ZZZ":
             break
         i = "LR".index(instruction)
         node = node_map[node][i]
-    return count
+    return n_steps
 
 
 def find_cycle(node, instructions, node_map):
@@ -42,66 +43,83 @@ def find_cycle(node, instructions, node_map):
                 break
         else:
             seen_at[node] = i
-        i = "LR".index(instruction)
-        node = node_map[node][i]
+        is_right = "LR".index(instruction)
+        node = node_map[node][is_right]
     loop_start = seen_at[node]
     loop_length = i - seen_at[node]
     return loop_start, loop_length, end_at
+
+
+def find_nodes_ending_in_A(node_map):
+    nodes = set()
+    for k, (l, r) in node_map.items():
+        for node in (k, l, r):
+            if node.endswith('A'):
+                nodes.add(node)
+    return nodes
+
+
+def merge_cycles(start_1, length_1, start_2, length_2):
+    assert 0 <= start_1 < length_1
+    assert 0 <= start_2 < length_2
+
+    if length_2 > length_1:
+        start_1, start_2 = start_2, start_1
+        length_1, length_2 = length_2, length_1
+    length = length_1 * length_2 / math.gcd(int(length_1), int(length_2))
+    assert length % 1 == 0
+    length = int(length)
+    for i in range(length // length_1):
+        start = start_1 + i * length_1
+        if start % length_2 == start_2:
+            break
+    else:
+        return None
+    assert 0 <= start < length
+    return start, length
 
 
 def part_2(text):
     """
     >>> part_2(EXAMPLE3_TEXT)
     6
+
+    14265111103729
     """
     instructions, node_map = parse(text)
-    nodes = set()
-    for k, (l, r) in node_map.items():
-        for node in (k, l, r):
-            if node.endswith('A'):
-                nodes.add(node)
+    nodes = find_nodes_ending_in_A(node_map)
+
     cycles = {}
-    print(nodes)
     for node in nodes:
         cycles[node] = find_cycle(node, instructions, node_map)
+
     # Really we should check before the first cycle for all of these
     # but assume minimum occurs after that.
     compute_cycles = []
-    # print(nodes)
     max_start = max(start for (start, *_) in cycles.values())
     for node in sorted(cycles.keys(), key=lambda k: cycles[k][1], reverse=True):
-        # print(node)
         loop_start, loop_length, end_at = cycles[node]
         relative_ends = set()
         for i in range(loop_length):
             n = max_start + i
             for end in end_at:
-                if (end - max_start) % loop_length == n - max_start:
+                if (end >= loop_start) and (
+                    end - max_start
+                ) % loop_length == n - max_start:
                     relative_ends.add(i)
         compute_cycles.append((max_start, loop_length, sorted(relative_ends)))
 
-    def alligns(n, s1, l1, ends_1):
-        for e1 in ends_1:
-            if (n - s1 - e1) % l1 == 0:
-                return True
-        return False
-
-    # Use longest cycle for testing
-    start, length, ends = compute_cycles[0]
-
-    print([len(ends) for (_, _, ends) in cycles.values()])
-    # print(cycles)
-    # print(start, length, ends)
-    for i in count():
-        # print(i)
-        n0 = start + i * length
-        for dn in ends:
-            n = n0 + dn
-            for s1, l1, ends_1 in compute_cycles[1:]:
-                if not alligns(n, s1, l1, ends_1):
-                    break
-            else:
-                return n
+    _, length, ends = compute_cycles[0]
+    merged_cycles = [(end, length) for end in ends]
+    for _, l1, ends in compute_cycles[1:]:
+        new_merged = []
+        for e0, l0 in merged_cycles:
+            for e1 in ends:
+                merged = merge_cycles(e0, l0, e1, l1)
+                if merged is not None:
+                    new_merged.append(merged)
+        merged_cycles = new_merged
+    return min(start + max_start for (start, _) in merged_cycles)
 
 
 if __name__ == "__main__":
