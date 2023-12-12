@@ -16,6 +16,8 @@ def parse(text):
 
 def expand_board(board, expansion=2):
     delta = expansion - 1
+
+    # Expand empty rows
     by_row = defaultdict(set)
     for i, j in board:
         by_row[i].add(j)
@@ -30,6 +32,7 @@ def expand_board(board, expansion=2):
             offset += delta
     board = new_board
 
+    # Expand empty columns
     by_col = defaultdict(set)
     for i, j in board:
         by_col[j].add(i)
