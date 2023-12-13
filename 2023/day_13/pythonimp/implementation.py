@@ -1,3 +1,6 @@
+from functools import lru_cache
+
+
 def parse_block(text):
     block = set()
     max_i = max_j = 0
@@ -8,7 +11,9 @@ def parse_block(text):
             max_j = max(j, max_j)
             if x == '#':
                 block.add((i, j))
-    return block, max_i, max_j
+    n_rows = max_i + 1
+    n_cols = max_j + 1
+    return frozenset(block), n_rows, n_cols
 
 
 def parse(text):
@@ -16,26 +21,38 @@ def parse(text):
         yield parse_block(block)
 
 
-def find_horizontal_reflections(block, max_i, max_j):
-    by_col = [set() for _ in range(max_j + 1)]
+@lru_cache
+def compute_by_col(block, n_cols):
+    by_col = [set() for _ in range(n_cols)]
     for i, j in block:
         by_col[j].add(i)
-    by_col = tuple(frozenset(x) for x in by_col)
-    for j in range(1, max_j + 1):
-        right_cols = by_col[j : 2 * j][::-1]
-        left_cols = by_col[j - len(right_cols) : j]
-        if left_cols == right_cols:
-            yield j
+    return by_col
 
 
-def find_vertical_reflections(block, max_i, max_j):
-    transposed = set((j, i) for (i, j) in block)
-    return find_horizontal_reflections(transposed, max_j, max_i)
+def find_horizontal_reflections(block, n_rows, n_cols, toggle=()):
+    by_col = compute_by_col(block, n_cols)
+    for i, j in toggle:
+        by_col[j] ^= {i}
+    try:
+        for j in range(1, n_cols):
+            right_cols = by_col[j : 2 * j][::-1]
+            left_cols = by_col[j - len(right_cols) : j]
+            if left_cols == right_cols:
+                yield j
+    finally:
+        for i, j in toggle:
+            by_col[j] ^= {i}
 
 
-def score(block, max_i, max_j):
-    h = find_horizontal_reflections(block, max_i, max_j)
-    v = find_vertical_reflections(block, max_i, max_j)
+def find_vertical_reflections(block, n_rows, n_cols, toggle=()):
+    block = frozenset((j, i) for (i, j) in block)
+    toggle = tuple((j, i) for (i, j) in toggle)
+    return find_horizontal_reflections(block, n_cols, n_rows, toggle=toggle)
+
+
+def score(block, n_rows, n_cols):
+    h = find_horizontal_reflections(block, n_rows, n_cols)
+    v = find_vertical_reflections(block, n_rows, n_cols)
     return sum(h, 0) + 100 * sum(v, 0)
 
 
@@ -43,44 +60,51 @@ def part_1(text):
     """
     >>> part_1(EXAMPLE_TEXT)
     405
+
+    34918
     """
     total = 0
-    for i, (block, max_i, max_j) in enumerate(parse(text)):
-        total += score(block, max_i, max_j)
+    for i, (block, n_rows, n_cols) in enumerate(parse(text)):
+        total += score(block, n_rows, n_cols)
     return total
 
 
-def desmudged_score(block, max_i, max_j):
-    h0 = set(find_horizontal_reflections(block, max_i, max_j))
-    v0 = set(find_vertical_reflections(block, max_i, max_j))
-    for i in range(max_i + 1):
-        for j in range(max_j + 1):
-            block ^= {(i, j)}
-            try:
-                h = set(find_horizontal_reflections(block, max_i, max_j)) - h0
-                if h:
-                    [h] = h
+def _unpack(iterable):
+    # If there is anything here, return the first (and only item)
+    for x in iterable:
+        return x
+        break
+    else:
+        # Otherwise return None
+        return None
+    raise ValueError("should only be 0 or 1 items")
+
+
+def desmudged_score(block, n_rows, n_cols):
+    h0 = _unpack(find_horizontal_reflections(block, n_rows, n_cols))
+    v0 = _unpack(find_vertical_reflections(block, n_rows, n_cols))
+    for i in range(n_rows):
+        for j in range(n_cols):
+            toggle = [(i, j)]
+            for h in find_horizontal_reflections(block, n_rows, n_cols, toggle=toggle):
+                if h != h0:
                     return h
-                v = set(find_vertical_reflections(block, max_i, max_j)) - v0
-                if v:
-                    [v] = v
+            for v in find_vertical_reflections(block, n_rows, n_cols, toggle=toggle):
+                if v != v0:
                     return 100 * v
-            finally:
-                block ^= {(i, j)}
 
 
 def part_2(text):
     """
     >>> part_2(EXAMPLE_TEXT)
     400
+
+    # 33054
     """
     total = 0
     for i, (block, max_i, max_j) in enumerate(parse(text)):
         x = desmudged_score(block, max_i, max_j)
-        if x is None:
-            print(i, "can't be desmudged")
-        else:
-            total += x
+        total += x
     return total
 
 
