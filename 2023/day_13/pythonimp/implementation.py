@@ -23,30 +23,28 @@ def parse(text):
 
 @lru_cache
 def compute_by_col(block, n_cols):
-    by_col = [set() for _ in range(n_cols)]
+    by_col = [0 for _ in range(n_cols)]
     for i, j in block:
-        by_col[j].add(i)
+        by_col[j] |= 1 << i
     return by_col
 
 
-def find_horizontal_reflections(block, n_rows, n_cols, toggle=()):
+def find_horizontal_reflections(block, n_rows, n_cols, toggle=None):
     by_col = compute_by_col(block, n_cols)
-    for i, j in toggle:
-        by_col[j] ^= {i}
-    try:
-        for j in range(1, n_cols):
-            right_cols = by_col[j : 2 * j][::-1]
-            left_cols = by_col[j - len(right_cols) : j]
-            if left_cols == right_cols:
-                yield j
-    finally:
-        for i, j in toggle:
-            by_col[j] ^= {i}
+    if toggle is not None:
+        by_col = list(by_col)
+        i, j = toggle
+        by_col[j] ^= 1 << i
+    for j in range(1, n_cols):
+        right_cols = by_col[2 * j - 1 : j - 1 : -1]
+        left_cols = by_col[j - len(right_cols) : j]
+        if left_cols == right_cols:
+            yield j
 
 
-def find_vertical_reflections(block, n_rows, n_cols, toggle=()):
+def find_vertical_reflections(block, n_rows, n_cols, toggle=None):
     block = frozenset((j, i) for (i, j) in block)
-    toggle = tuple((j, i) for (i, j) in toggle)
+    toggle = toggle if (toggle is None) else toggle[::-1]
     return find_horizontal_reflections(block, n_cols, n_rows, toggle=toggle)
 
 
@@ -85,11 +83,10 @@ def desmudged_score(block, n_rows, n_cols):
     v0 = _unpack(find_vertical_reflections(block, n_rows, n_cols))
     for i in range(n_rows):
         for j in range(n_cols):
-            toggle = [(i, j)]
-            for h in find_horizontal_reflections(block, n_rows, n_cols, toggle=toggle):
+            for h in find_horizontal_reflections(block, n_rows, n_cols, toggle=(i, j)):
                 if h != h0:
                     return h
-            for v in find_vertical_reflections(block, n_rows, n_cols, toggle=toggle):
+            for v in find_vertical_reflections(block, n_rows, n_cols, toggle=(i, j)):
                 if v != v0:
                     return 100 * v
 
