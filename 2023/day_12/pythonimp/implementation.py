@@ -1,4 +1,5 @@
 from functools import cache
+from multiprocessing import Pool
 
 
 def parse(text):
@@ -15,11 +16,10 @@ def parse(text):
 
 @cache
 def _count_valid(seq, counts):
-    seq = seq.lstrip('.')
-    if not seq:
-        return not counts
     if not counts:
         return 0 if ('#' in seq) else 1
+    if len(seq) - seq.count('.') < sum(counts):
+        return 0
     required = counts[0]
     first_known_dot = seq.index('.')
     if first_known_dot < required:
@@ -30,7 +30,7 @@ def _count_valid(seq, counts):
     for i in range(available):
         break_available = seq[i + required] in '.?'
         if break_available:
-            count += _count_valid(seq[i + required + 1 :], counts[1:])
+            count += _count_valid(seq[i + required + 1 :].lstrip('.'), counts[1:])
         at_a_spring = seq[i] == '#'
         if at_a_spring:
             # Can't proceed since current count _must_ start here
@@ -39,9 +39,10 @@ def _count_valid(seq, counts):
     return count + counts_if_skip_this_block
 
 
-def count_valid(seq, counts):
+def count_valid(record):
+    seq, counts = record
     # Ensure all sequences end with '.' so can remove check in _count_valid
-    seq = seq + '.'
+    seq = seq.lstrip('.') + '.'
     return _count_valid(seq, counts)
 
 
@@ -51,11 +52,7 @@ def part_1(text):
     21
     """
     records = parse(text)
-    total = 0
-    for record, counts in records:
-        valid = count_valid(record, counts)
-        total += valid
-    return total
+    return sum(map(count_valid, records))
 
 
 def unfold(record, counts, n=5):
@@ -74,12 +71,9 @@ def part_2(text):
     # 1493340882140
     """
     records = parse(text)
-    total = 0
-    for record, counts in records:
-        record, counts = unfold(record, counts)
-        valid = count_valid(record, counts)
-        total += valid
-    return total
+    args = [unfold(record, counts) for record, counts in records]
+    with Pool(8) as p:
+        return sum(p.map(count_valid, args))
 
 
 if __name__ == "__main__":
