@@ -58,8 +58,8 @@ def parse(text):
 def tilt_north(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
-    >>> movable = set(k for k in board if board[k] == 'O')
-    >>> fixed = set(k for k in board if board[k] == '#')
+    >>> movable = frozenset(k for k in board if board[k] == 'O')
+    >>> fixed = frozenset(k for k in board if board[k] == '#')
     >>> movable = tilt_north(movable, fixed, n_rows, n_cols)
     >>> print(render2(movable, fixed, n_rows, n_cols))
     OOOO.#.O..
@@ -74,56 +74,57 @@ def tilt_north(movable, fixed, n_rows, n_cols):
     #....#....
     """
     limit = [0] * n_rows
+    new_movable = set()
     for i in range(n_rows):
         for j in range(n_cols):
             if (i, j) in movable:
-                movable.remove((i, j))
-                movable.add((limit[j], j))
+                new_movable.add((limit[j], j))
                 limit[j] += 1
             elif (i, j) in fixed:
                 limit[j] = i + 1
-    return movable
+    return frozenset(new_movable)
 
 
 def tilt_south(movable, fixed, n_rows, n_cols):
     limit = [n_rows - 1] * n_rows
+    new_movable = set()
     for i in reversed(range(n_rows)):
         for j in range(n_cols):
             if (i, j) in movable:
-                movable.remove((i, j))
-                movable.add((limit[j], j))
+                new_movable.add((limit[j], j))
                 limit[j] -= 1
             elif (i, j) in fixed:
                 limit[j] = i - 1
-    return movable
+    return frozenset(new_movable)
 
 
 def tilt_west(movable, fixed, n_rows, n_cols):
     limit = [0] * n_cols
+    new_movable = set()
     for j in range(n_cols):
         for i in range(n_rows):
             if (i, j) in movable:
-                movable.remove((i, j))
-                movable.add((i, limit[i]))
+                new_movable.add((i, limit[i]))
                 limit[i] += 1
             elif (i, j) in fixed:
                 limit[i] = j + 1
-    return movable
+    return frozenset(new_movable)
 
 
 def tilt_east(movable, fixed, n_rows, n_cols):
     limit = [n_cols - 1] * n_rows
+    new_movable = set()
     for j in reversed(range(n_cols)):
         for i in range(n_rows):
             if (i, j) in movable:
-                movable.remove((i, j))
-                movable.add((i, limit[i]))
+                new_movable.add((i, limit[i]))
                 limit[i] -= 1
             elif (i, j) in fixed:
                 limit[i] = j - 1
-    return movable
+    return frozenset(new_movable)
 
 
+@cache
 def spin(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
@@ -166,8 +167,8 @@ def part_1(text):
     136
     """
     board, n_rows, n_cols = parse(text)
-    movable = set(k for k in board if board[k] == 'O')
-    fixed = set(k for k in board if board[k] == '#')
+    movable = frozenset(k for k in board if board[k] == 'O')
+    fixed = frozenset(k for k in board if board[k] == '#')
     movable = tilt_north(movable, fixed, n_rows, n_cols)
     return load(movable, n_rows, n_cols)
 
@@ -178,20 +179,18 @@ def part_2(text, spins=1000000000):
     64
     """
     board, n_rows, n_cols = parse(text)
-    movable = set(k for k in board if board[k] == 'O')
-    fixed = set(k for k in board if board[k] == '#')
-    state_to_n = {frozenset(movable): 0}
+    movable = frozenset(k for k in board if board[k] == 'O')
+    fixed = frozenset(k for k in board if board[k] == '#')
+    state_to_n = {movable: 0}
     for n in range(1, spins + 1):
         movable = spin(movable, fixed, n_rows, n_cols)
-        key = frozenset(movable)
-        if key in state_to_n:
-            delta = n - state_to_n[key]
+        if movable in state_to_n:
+            delta = n - state_to_n[movable]
             left = (spins - n) % delta
             for _ in range(left):
                 movable = spin(movable, fixed, n_rows, n_cols)
             break
-        else:
-            state_to_n[key] = n
+        state_to_n[movable] = n
     return load(movable, n_rows, n_cols)
 
 
