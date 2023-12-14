@@ -76,60 +76,59 @@ def tilt_north(movable, fixed, n_rows, n_cols):
     limit = [0] * n_rows
     new_movable = set()
     for i in range(n_rows):
-        for j in range(n_cols):
+        for j, min_i in enumerate(limit):
             if (i, j) in movable:
-                new_movable.add((limit[j], j))
-                limit[j] += 1
+                new_movable.add((min_i, j))
+                limit[j] = min_i + 1
             elif (i, j) in fixed:
                 limit[j] = i + 1
-    return frozenset(new_movable)
+    return new_movable
 
 
 def tilt_south(movable, fixed, n_rows, n_cols):
     limit = [n_rows - 1] * n_rows
     new_movable = set()
     for i in reversed(range(n_rows)):
-        for j in range(n_cols):
+        for j, max_i in enumerate(limit):
             if (i, j) in movable:
-                new_movable.add((limit[j], j))
-                limit[j] -= 1
+                new_movable.add((max_i, j))
+                limit[j] = max_i - 1
             elif (i, j) in fixed:
                 limit[j] = i - 1
-    return frozenset(new_movable)
+    return new_movable
 
 
 def tilt_west(movable, fixed, n_rows, n_cols):
     limit = [0] * n_cols
     new_movable = set()
     for j in range(n_cols):
-        for i in range(n_rows):
+        for i, min_j in enumerate(limit):
             if (i, j) in movable:
-                new_movable.add((i, limit[i]))
-                limit[i] += 1
+                new_movable.add((i, min_j))
+                limit[i] = min_j + 1
             elif (i, j) in fixed:
                 limit[i] = j + 1
-    return frozenset(new_movable)
+    return new_movable
 
 
 def tilt_east(movable, fixed, n_rows, n_cols):
     limit = [n_cols - 1] * n_rows
     new_movable = set()
     for j in reversed(range(n_cols)):
-        for i in range(n_rows):
+        for i, max_j in enumerate(limit):
             if (i, j) in movable:
-                new_movable.add((i, limit[i]))
-                limit[i] -= 1
+                new_movable.add((i, max_j))
+                limit[i] = max_j - 1
             elif (i, j) in fixed:
                 limit[i] = j - 1
-    return frozenset(new_movable)
+    return new_movable
 
 
-@cache
 def spin(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
-    >>> movable = set(k for k in board if board[k] == 'O')
-    >>> fixed = set(k for k in board if board[k] == '#')
+    >>> movable = frozenset(k for k in board if board[k] == 'O')
+    >>> fixed = frozenset(k for k in board if board[k] == '#')
     >>> movable = spin(movable, fixed, n_rows, n_cols)
     >>> movable = spin(movable, fixed, n_rows, n_cols)
     >>> movable = spin(movable, fixed, n_rows, n_cols)
@@ -182,13 +181,19 @@ def part_2(text, spins=1000000000):
     movable = frozenset(k for k in board if board[k] == 'O')
     fixed = frozenset(k for k in board if board[k] == '#')
     state_to_n = {movable: 0}
+
+    @cache
+    def cached_spin(movable):
+        # This way caching only checks movable
+        return frozenset(spin(movable, fixed, n_rows, n_cols))
+
     for n in range(1, spins + 1):
-        movable = spin(movable, fixed, n_rows, n_cols)
+        movable = cached_spin(movable)
         if movable in state_to_n:
             delta = n - state_to_n[movable]
             left = (spins - n) % delta
             for _ in range(left):
-                movable = spin(movable, fixed, n_rows, n_cols)
+                movable = cached_spin(movable)
             break
         state_to_n[movable] = n
     return load(movable, n_rows, n_cols)
