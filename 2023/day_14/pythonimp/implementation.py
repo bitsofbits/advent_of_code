@@ -185,6 +185,7 @@ def part_2(text, spins=1000000000):
     @cache
     def cached_spin(movable):
         # This way caching only checks movable
+        # and we can convert to frozenset here, which is convenient
         return frozenset(spin(movable, fixed, n_rows, n_cols))
 
     for n in range(1, spins + 1):
