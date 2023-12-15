@@ -1,17 +1,4 @@
-from functools import cache
-
-
-def render(board, n_rows, n_cols):
-    lines = []
-    for i in range(n_rows):
-        line = []
-        for j in range(n_cols):
-            line.append(board.get((i, j), '.'))
-        lines.append(''.join(line))
-    return '\n'.join(lines)
-
-
-def render2(movable, fixed, n_rows, n_cols):
+def render(movable, fixed, n_rows, n_cols):
     lines = []
     for i in range(n_rows):
         line = []
@@ -26,12 +13,19 @@ def render2(movable, fixed, n_rows, n_cols):
     return '\n'.join(lines)
 
 
+def decompose(board, n_rows, n_cols):
+    movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
+    fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
+    return movable, fixed
+
+
 def parse(text):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
     >>> n_rows, n_cols
     (10, 10)
-    >>> print(render(board, n_rows, n_cols))
+    >>> movable, fixed = decompose(board, n_rows, n_cols)
+    >>> print(render(movable, fixed, n_rows, n_cols))
     O....#....
     O.OO#....#
     .....##...
@@ -58,10 +52,9 @@ def parse(text):
 def tilt_north(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
-    >>> movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
-    >>> fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
+    >>> movable, fixed = decompose(board, n_rows, n_cols)
     >>> movable = tilt_north(movable, fixed, n_rows, n_cols)
-    >>> print(render2(movable, fixed, n_rows, n_cols))
+    >>> print(render(movable, fixed, n_rows, n_cols))
     OOOO.#.O..
     OO..#....#
     OO..O##..O
@@ -127,13 +120,12 @@ def tilt_east(movable, fixed, n_rows, n_cols):
 def spin(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
-    >>> movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
-    >>> fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
+    >>> movable, fixed = decompose(board, n_rows, n_cols)
     >>> movable = spin(movable, fixed, n_rows, n_cols)
     >>> movable = spin(movable, fixed, n_rows, n_cols)
     >>> movable = spin(movable, fixed, n_rows, n_cols)
-    >>> print("-\\n", render2(movable, fixed, n_rows, n_cols), sep='')
-    -
+    >>> print("----------\\n", render(movable, fixed, n_rows, n_cols), sep='')
+    ----------
     .....#....
     ....#...O#
     .....##...
@@ -166,8 +158,7 @@ def part_1(text):
     136
     """
     board, n_rows, n_cols = parse(text)
-    movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
-    fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
+    movable, fixed = decompose(board, n_rows, n_cols)
     movable = tilt_north(movable, fixed, n_rows, n_cols)
     return compute_load(movable, n_rows, n_cols)
 
@@ -178,8 +169,7 @@ def part_2(text, spins=1000000000):
     64
     """
     board, n_rows, n_cols = parse(text)
-    movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
-    fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
+    movable, fixed = decompose(board, n_rows, n_cols)
 
     def as_key(x):
         return tuple(tuple(y) for y in x)
