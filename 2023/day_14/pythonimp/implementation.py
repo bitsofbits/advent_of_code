@@ -16,9 +16,9 @@ def render2(movable, fixed, n_rows, n_cols):
     for i in range(n_rows):
         line = []
         for j in range(n_cols):
-            if (i, j) in movable:
+            if movable[i][j]:
                 line.append('O')
-            elif (i, j) in fixed:
+            elif fixed[i][j]:
                 line.append('#')
             else:
                 line.append('.')
@@ -58,8 +58,8 @@ def parse(text):
 def tilt_north(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
-    >>> movable = frozenset(k for k in board if board[k] == 'O')
-    >>> fixed = frozenset(k for k in board if board[k] == '#')
+    >>> movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
+    >>> fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
     >>> movable = tilt_north(movable, fixed, n_rows, n_cols)
     >>> print(render2(movable, fixed, n_rows, n_cols))
     OOOO.#.O..
@@ -74,61 +74,61 @@ def tilt_north(movable, fixed, n_rows, n_cols):
     #....#....
     """
     limit = [0] * n_rows
-    new_movable = set()
     for i in range(n_rows):
         for j, min_i in enumerate(limit):
-            if (i, j) in movable:
-                new_movable.add((min_i, j))
+            if movable[i][j]:
+                movable[i][j] = 0
+                movable[min_i][j] = 1
                 limit[j] = min_i + 1
-            elif (i, j) in fixed:
+            elif fixed[i][j]:
                 limit[j] = i + 1
-    return new_movable
+    return movable
 
 
 def tilt_south(movable, fixed, n_rows, n_cols):
     limit = [n_rows - 1] * n_rows
-    new_movable = set()
     for i in reversed(range(n_rows)):
         for j, max_i in enumerate(limit):
-            if (i, j) in movable:
-                new_movable.add((max_i, j))
+            if movable[i][j]:
+                movable[i][j] = 0
+                movable[max_i][j] = 1
                 limit[j] = max_i - 1
-            elif (i, j) in fixed:
+            elif fixed[i][j]:
                 limit[j] = i - 1
-    return new_movable
+    return movable
 
 
 def tilt_west(movable, fixed, n_rows, n_cols):
     limit = [0] * n_cols
-    new_movable = set()
     for j in range(n_cols):
         for i, min_j in enumerate(limit):
-            if (i, j) in movable:
-                new_movable.add((i, min_j))
+            if movable[i][j]:
+                movable[i][j] = 0
+                movable[i][min_j] = 1
                 limit[i] = min_j + 1
-            elif (i, j) in fixed:
+            elif fixed[i][j]:
                 limit[i] = j + 1
-    return new_movable
+    return movable
 
 
 def tilt_east(movable, fixed, n_rows, n_cols):
     limit = [n_cols - 1] * n_rows
-    new_movable = set()
     for j in reversed(range(n_cols)):
         for i, max_j in enumerate(limit):
-            if (i, j) in movable:
-                new_movable.add((i, max_j))
+            if movable[i][j]:
+                movable[i][j] = 0
+                movable[i][max_j] = 1
                 limit[i] = max_j - 1
-            elif (i, j) in fixed:
+            elif fixed[i][j]:
                 limit[i] = j - 1
-    return new_movable
+    return movable
 
 
 def spin(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
-    >>> movable = frozenset(k for k in board if board[k] == 'O')
-    >>> fixed = frozenset(k for k in board if board[k] == '#')
+    >>> movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
+    >>> fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
     >>> movable = spin(movable, fixed, n_rows, n_cols)
     >>> movable = spin(movable, fixed, n_rows, n_cols)
     >>> movable = spin(movable, fixed, n_rows, n_cols)
@@ -153,11 +153,11 @@ def spin(movable, fixed, n_rows, n_cols):
     return movable
 
 
-def load(movable, n_rows, n_cols):
+def compute_load(movable, n_rows, n_cols):
     total = 0
-    for i, j in movable:
-        total += i
-    return n_rows * len(movable) - total
+    for i, row in enumerate(movable):
+        total += (n_rows - i) * sum(row)
+    return total
 
 
 def part_1(text):
@@ -166,10 +166,10 @@ def part_1(text):
     136
     """
     board, n_rows, n_cols = parse(text)
-    movable = frozenset(k for k in board if board[k] == 'O')
-    fixed = frozenset(k for k in board if board[k] == '#')
+    movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
+    fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
     movable = tilt_north(movable, fixed, n_rows, n_cols)
-    return load(movable, n_rows, n_cols)
+    return compute_load(movable, n_rows, n_cols)
 
 
 def part_2(text, spins=1000000000):
@@ -178,26 +178,27 @@ def part_2(text, spins=1000000000):
     64
     """
     board, n_rows, n_cols = parse(text)
-    movable = frozenset(k for k in board if board[k] == 'O')
-    fixed = frozenset(k for k in board if board[k] == '#')
-    state_to_n = {movable: 0}
+    movable = [[board.get((i, j)) == 'O' for j in range(n_cols)] for i in range(n_rows)]
+    fixed = [[board.get((i, j)) == '#' for j in range(n_cols)] for i in range(n_rows)]
 
-    @cache
-    def cached_spin(movable):
-        # This way caching only checks movable
-        # and we can convert to frozenset here, which is convenient
-        return frozenset(spin(movable, fixed, n_rows, n_cols))
+    def as_key(x):
+        return tuple(tuple(y) for y in x)
+
+    states = {}
+    next_key = as_key(movable)
 
     for n in range(1, spins + 1):
-        movable = cached_spin(movable)
-        if movable in state_to_n:
-            delta = n - state_to_n[movable]
-            left = (spins - n) % delta
+        key = next_key
+        movable = spin(movable, fixed, n_rows, n_cols)
+        next_key = as_key(movable)
+        if key in states:
+            n0, movable = states[key]
+            left = (spins - n) % (n - n0)
             for _ in range(left):
-                movable = cached_spin(movable)
+                _, movable = states[as_key(movable)]
             break
-        state_to_n[movable] = n
-    return load(movable, n_rows, n_cols)
+        states[key] = (n, next_key)
+    return compute_load(movable, n_rows, n_cols)
 
 
 if __name__ == "__main__":
