@@ -20,23 +20,23 @@ def _count_valid(seq, counts):
         return 0 if ('#' in seq) else 1
     if len(seq) - seq.count('.') < sum(counts):
         return 0
-    required = counts[0]
     first_known_dot = seq.index('.')
+    required = counts[0]
     if first_known_dot < required:
-        has_spring = '#' in seq[:first_known_dot]
-        return 0 if has_spring else _count_valid(seq[first_known_dot + 1 :], counts)
+        if '#' in seq[:first_known_dot]:
+            return 0
+        else:
+            return _count_valid(seq[first_known_dot + 1 :], counts)
     available = first_known_dot - required + 1
     count = 0
     for i in range(available):
-        break_available = seq[i + required] in '.?'
+        break_available = seq[i + required] != '#'
         if break_available:
-            count += _count_valid(seq[i + required + 1 :].lstrip('.'), counts[1:])
-        at_a_spring = seq[i] == '#'
-        if at_a_spring:
+            count += _count_valid(seq[i + required + 1 :], counts[1:])
+        if seq[i] == '#':
             # Can't proceed since current count _must_ start here
             return count
-    counts_if_skip_this_block = _count_valid(seq[available:], counts)
-    return count + counts_if_skip_this_block
+    return count + _count_valid(seq[available:], counts)
 
 
 def count_valid(record):
@@ -63,7 +63,7 @@ def unfold(record, counts, n=5):
     return '?'.join([record] * n), counts * n
 
 
-def part_2(text):
+def part_2(text, use_multiprocessing=True):
     """
     >>> part_2(EXAMPLE_TEXT)
     525152
@@ -71,9 +71,12 @@ def part_2(text):
     # 1493340882140
     """
     records = parse(text)
-    args = [unfold(record, counts) for record, counts in records]
-    with Pool(8) as p:
-        return sum(p.map(count_valid, args))
+    records = [unfold(record, counts) for record, counts in records]
+    if use_multiprocessing:
+        with Pool(8) as p:
+            return sum(p.imap_unordered(count_valid, records, chunksize=10))
+    else:
+        return sum(map(count_valid, records))
 
 
 if __name__ == "__main__":
