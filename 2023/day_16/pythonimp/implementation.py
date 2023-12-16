@@ -17,60 +17,77 @@ def parse(text):
 
 
 @cache
-def transform(i, j, heading, x):
+def transform_core(heading, x):
     """
     >>> board = parse(EXAMPLE_TEXT)
-    >>> transform(0, 1, 'E', '|')
-    [(1, 1, 'S'), (-1, 1, 'N')]
+    >>> transform_core('E', '|')
+    [(1, 0, 'S'), (-1, 0, 'N')]
     """
     match (x, heading):
         case ('/', 'N'):
-            return [(i, j + 1, 'E')]
+            return [(0, 1, 'E')]
         case ('/', 'S'):
-            return [(i, j - 1, 'W')]
+            return [(0, -1, 'W')]
         case ('/', 'E'):
-            return [(i - 1, j, 'N')]
+            return [(-1, 0, 'N')]
         case ('/', 'W'):
-            return [(i + 1, j, 'S')]
+            return [(1, 0, 'S')]
 
         case ('\\', 'N'):
-            return [(i, j - 1, 'W')]
+            return [(0, -1, 'W')]
         case ('\\', 'S'):
-            return [(i, j + 1, 'E')]
+            return [(0, 1, 'E')]
         case ('\\', 'E'):
-            return [(i + 1, j, 'S')]
+            return [(1, 0, 'S')]
         case ('\\', 'W'):
-            return [(i - 1, j, 'N')]
+            return [(-1, 0, 'N')]
 
         case ('|', 'N'):
-            return [(i - 1, j, 'N')]
+            return [(-1, 0, 'N')]
         case ('|', 'S'):
-            return [(i + 1, j, 'S')]
+            return [(1, 0, 'S')]
         case ('|', 'E'):
-            return [(i + 1, j, 'S'), (i - 1, j, 'N')]
+            return [(1, 0, 'S'), (-1, 0, 'N')]
         case ('|', 'W'):
-            return [(i + 1, j, 'S'), (i - 1, j, 'N')]
+            return [(1, 0, 'S'), (-1, 0, 'N')]
 
         case ('-', 'N'):
-            return [(i, j - 1, 'W'), (i, j + 1, 'E')]
+            return [(0, -1, 'W'), (0, 1, 'E')]
         case ('-', 'S'):
-            return [(i, j - 1, 'W'), (i, j + 1, 'E')]
+            return [(0, -1, 'W'), (0, 1, 'E')]
         case ('-', 'E'):
-            return [(i, j + 1, 'E')]
+            return [(0, 1, 'E')]
         case ('-', 'W'):
-            return [(i, j - 1, 'W')]
+            return [(0, -1, 'W')]
 
         case ('.', 'N'):
-            return [(i - 1, j, 'N')]
+            return [(-1, 0, 'N')]
         case ('.', 'S'):
-            return [(i + 1, j, 'S')]
+            return [(1, 0, 'S')]
         case ('.', 'E'):
-            return [(i, j + 1, 'E')]
+            return [(0, 1, 'E')]
         case ('.', 'W'):
-            return [(i, j - 1, 'W')]
+            return [(0, -1, 'W')]
 
         case _:
             raise ValueError(i, j, heading, x)
+
+
+@cache
+def transform(i, j, heading, x, n_rows, n_cols):
+    """
+    >>> board = parse(EXAMPLE_TEXT)
+    >>> transform(0, 1, 'E', '|', 10, 10)
+    [(1, 1, 'S')]
+    """
+    value = []
+    for di, dj, new_heading in transform_core(heading, x):
+        i1 = i + di
+        j1 = j + dj
+        if 0 <= i1 < n_rows and 0 <= j1 < n_cols:
+            value.append((i1, j1, new_heading))
+    return value
+
 
 
 def compute_energized(board, start):
@@ -81,12 +98,10 @@ def compute_energized(board, start):
     while queue:
         beam = queue.pop()
         seen.add(beam)
-        i0, j0, _ = beam
-        x = board[i0][j0]
-        for x in transform(*beam, x):
-            i, j, _ = x
-            if 0 <= i < n_rows and 0 <= j < n_cols and x not in seen:
-                queue.appendleft(x)
+        i, j, heading = beam
+        for new_beam in transform(i, j, heading, board[i][j], n_rows, n_cols):
+            if new_beam not in seen:
+                queue.appendleft(new_beam)
     energized = set()
     for i, j, _ in seen:
         energized.add((i, j))
