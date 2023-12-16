@@ -53,7 +53,7 @@ def tilt_north(movable, fixed, n_rows, n_cols):
     """
     >>> board, n_rows, n_cols = parse(EXAMPLE_TEXT)
     >>> movable, fixed = decompose(board, n_rows, n_cols)
-    >>> movable = tilt_north(movable, fixed, n_rows, n_cols)
+    >>> tilt_north(movable, fixed, n_rows, n_cols)
     >>> print(render(movable, fixed, n_rows, n_cols))
     OOOO.#.O..
     OO..#....#
@@ -66,55 +66,55 @@ def tilt_north(movable, fixed, n_rows, n_cols):
     #....###..
     #....#....
     """
-    limit = [0] * n_rows
+    limit = [0] * n_cols
     for i in range(n_rows):
-        for j, min_i in enumerate(limit):
+        for j in range(n_cols):
             if movable[i][j]:
                 movable[i][j] = 0
+                min_i = limit[j]
                 movable[min_i][j] = 1
                 limit[j] = min_i + 1
             elif fixed[i][j]:
                 limit[j] = i + 1
-    return movable
 
 
 def tilt_south(movable, fixed, n_rows, n_cols):
-    limit = [n_rows - 1] * n_rows
+    limit = [n_rows - 1] * n_cols
     for i in reversed(range(n_rows)):
-        for j, max_i in enumerate(limit):
+        for j in range(n_cols):
             if movable[i][j]:
                 movable[i][j] = 0
+                max_i = limit[j]
                 movable[max_i][j] = 1
                 limit[j] = max_i - 1
             elif fixed[i][j]:
                 limit[j] = i - 1
-    return movable
 
 
 def tilt_west(movable, fixed, n_rows, n_cols):
-    limit = [0] * n_cols
+    limit = [0] * n_rows
     for j in range(n_cols):
-        for i, min_j in enumerate(limit):
+        for i in range(n_rows):
             if movable[i][j]:
                 movable[i][j] = 0
+                min_j = limit[i]
                 movable[i][min_j] = 1
                 limit[i] = min_j + 1
             elif fixed[i][j]:
                 limit[i] = j + 1
-    return movable
 
 
 def tilt_east(movable, fixed, n_rows, n_cols):
     limit = [n_cols - 1] * n_rows
     for j in reversed(range(n_cols)):
-        for i, max_j in enumerate(limit):
+        for i in range(n_rows):
             if movable[i][j]:
                 movable[i][j] = 0
+                max_j = limit[i]
                 movable[i][max_j] = 1
                 limit[i] = max_j - 1
             elif fixed[i][j]:
                 limit[i] = j - 1
-    return movable
 
 
 def spin(movable, fixed, n_rows, n_cols):
@@ -138,10 +138,10 @@ def spin(movable, fixed, n_rows, n_cols):
     #.OOO#...O
 
     """
-    movable = tilt_north(movable, fixed, n_rows, n_cols)
-    movable = tilt_west(movable, fixed, n_rows, n_cols)
-    movable = tilt_south(movable, fixed, n_rows, n_cols)
-    movable = tilt_east(movable, fixed, n_rows, n_cols)
+    tilt_north(movable, fixed, n_rows, n_cols)
+    tilt_west(movable, fixed, n_rows, n_cols)
+    tilt_south(movable, fixed, n_rows, n_cols)
+    tilt_east(movable, fixed, n_rows, n_cols)
     return movable
 
 
@@ -159,7 +159,7 @@ def part_1(text):
     """
     board, n_rows, n_cols = parse(text)
     movable, fixed = decompose(board, n_rows, n_cols)
-    movable = tilt_north(movable, fixed, n_rows, n_cols)
+    tilt_north(movable, fixed, n_rows, n_cols)
     return compute_load(movable, n_rows, n_cols)
 
 
@@ -179,7 +179,7 @@ def part_2(text, spins=1000000000):
 
     for n in range(1, spins + 1):
         key = next_key
-        movable = spin(movable, fixed, n_rows, n_cols)
+        spin(movable, fixed, n_rows, n_cols)
         next_key = as_key(movable)
         if key in states:
             n0, movable = states[key]
