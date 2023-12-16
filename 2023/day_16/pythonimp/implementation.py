@@ -15,61 +15,28 @@ def parse(text):
     return tuple(tuple(x) for x in board)
 
 
-@cache
-def transform_core(heading, x):
-    """
-    >>> board = parse(EXAMPLE_TEXT)
-    >>> transform_core('E', '|')
-    [(1, 0, 'S'), (-1, 0, 'N')]
-    """
-    match (x, heading):
-        case ('/', 'N'):
-            return [(0, 1, 'E')]
-        case ('/', 'S'):
-            return [(0, -1, 'W')]
-        case ('/', 'E'):
-            return [(-1, 0, 'N')]
-        case ('/', 'W'):
-            return [(1, 0, 'S')]
-
-        case ('\\', 'N'):
-            return [(0, -1, 'W')]
-        case ('\\', 'S'):
-            return [(0, 1, 'E')]
-        case ('\\', 'E'):
-            return [(1, 0, 'S')]
-        case ('\\', 'W'):
-            return [(-1, 0, 'N')]
-
-        case ('|', 'N'):
-            return [(-1, 0, 'N')]
-        case ('|', 'S'):
-            return [(1, 0, 'S')]
-        case ('|', 'E'):
-            return [(1, 0, 'S'), (-1, 0, 'N')]
-        case ('|', 'W'):
-            return [(1, 0, 'S'), (-1, 0, 'N')]
-
-        case ('-', 'N'):
-            return [(0, -1, 'W'), (0, 1, 'E')]
-        case ('-', 'S'):
-            return [(0, -1, 'W'), (0, 1, 'E')]
-        case ('-', 'E'):
-            return [(0, 1, 'E')]
-        case ('-', 'W'):
-            return [(0, -1, 'W')]
-
-        case ('.', 'N'):
-            return [(-1, 0, 'N')]
-        case ('.', 'S'):
-            return [(1, 0, 'S')]
-        case ('.', 'E'):
-            return [(0, 1, 'E')]
-        case ('.', 'W'):
-            return [(0, -1, 'W')]
-
-        case _:
-            raise ValueError(i, j, heading, x)
+transform_map = {
+    ('/', 'N'): [(0, 1, 'E')],
+    ('/', 'S'): [(0, -1, 'W')],
+    ('/', 'E'): [(-1, 0, 'N')],
+    ('/', 'W'): [(1, 0, 'S')],
+    ('\\', 'N'): [(0, -1, 'W')],
+    ('\\', 'S'): [(0, 1, 'E')],
+    ('\\', 'E'): [(1, 0, 'S')],
+    ('\\', 'W'): [(-1, 0, 'N')],
+    ('|', 'N'): [(-1, 0, 'N')],
+    ('|', 'S'): [(1, 0, 'S')],
+    ('|', 'E'): [(1, 0, 'S'), (-1, 0, 'N')],
+    ('|', 'W'): [(1, 0, 'S'), (-1, 0, 'N')],
+    ('-', 'N'): [(0, -1, 'W'), (0, 1, 'E')],
+    ('-', 'S'): [(0, -1, 'W'), (0, 1, 'E')],
+    ('-', 'E'): [(0, 1, 'E')],
+    ('-', 'W'): [(0, -1, 'W')],
+    ('.', 'N'): [(-1, 0, 'N')],
+    ('.', 'S'): [(1, 0, 'S')],
+    ('.', 'E'): [(0, 1, 'E')],
+    ('.', 'W'): [(0, -1, 'W')],
+}
 
 
 @cache
@@ -79,26 +46,16 @@ def transform(i, j, heading, x, n_rows, n_cols):
     >>> transform(0, 1, 'E', '|', 10, 10)
     [(1, 1, 'S')]
     """
-    value = []
-    for di, dj, new_heading in transform_core(heading, x):
-        i1 = i + di
-        j1 = j + dj
-        if 0 <= i1 < n_rows and 0 <= j1 < n_cols:
-            value.append((i1, j1, new_heading))
-    return value
-
-
-# def build_library(board):
-#     for (i, j, x) in board:
-#         if x == '.':
-#             continue
-#         for heading in 'NESW':
-            
+    return [
+        (i1, j1, new_heading)
+        for (di, dj, new_heading) in transform_map[(x, heading)]
+        if 0 <= (i1 := i + di) < n_rows and 0 <= (j1 := j + dj) < n_cols
+    ]
 
 
 def compute_beams(board, start):
     queue = [start]
-    seen = {start}
+    seen = set()
     n_rows = len(board)
     n_cols = len(board[0])
     while queue:
@@ -137,10 +94,14 @@ def part_2(text):
     max_energized = 0
     for row in range(n_rows):
         max_energized = max(max_energized, compute_energized(board, (row, 0, 'E')))
-        max_energized = max(max_energized, compute_energized(board, (row, n_cols - 1, 'W')))
+        max_energized = max(
+            max_energized, compute_energized(board, (row, n_cols - 1, 'W'))
+        )
     for col in range(n_cols):
         max_energized = max(max_energized, compute_energized(board, (0, col, 'S')))
-        max_energized = max(max_energized, compute_energized(board, (n_rows - 1, col, 'N')))
+        max_energized = max(
+            max_energized, compute_energized(board, (n_rows - 1, col, 'N'))
+        )
     return max_energized
 
 
