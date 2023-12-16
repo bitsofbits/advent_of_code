@@ -174,20 +174,21 @@ def part_2(text, spins=1000000000):
     def as_key(x):
         return tuple(tuple(y) for y in x)
 
-    states = {}
+    key_to_n = {}
+    n_to_key = [None]
     next_key = as_key(movable)
 
     for n in range(1, spins + 1):
         key = next_key
         spin(movable, fixed, n_rows, n_cols)
         next_key = as_key(movable)
-        if key in states:
-            n0, movable = states[key]
+        if key in key_to_n:
+            n0 = key_to_n[key]
             left = (spins - n) % (n - n0)
-            for _ in range(left):
-                _, movable = states[as_key(movable)]
+            movable = n_to_key[n0 + left]
             break
-        states[key] = (n, next_key)
+        key_to_n[key] = n
+        n_to_key.append(next_key)
     return compute_load(movable, n_rows, n_cols)
 
 
