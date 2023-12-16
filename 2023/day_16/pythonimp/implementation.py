@@ -1,4 +1,3 @@
-from collections import deque
 from functools import cache
 
 
@@ -89,9 +88,16 @@ def transform(i, j, heading, x, n_rows, n_cols):
     return value
 
 
+# def build_library(board):
+#     for (i, j, x) in board:
+#         if x == '.':
+#             continue
+#         for heading in 'NESW':
+            
 
-def compute_energized(board, start):
-    queue = deque([start])
+
+def compute_beams(board, start):
+    queue = [start]
     seen = {start}
     n_rows = len(board)
     n_cols = len(board[0])
@@ -101,10 +107,13 @@ def compute_energized(board, start):
         i, j, heading = beam
         for new_beam in transform(i, j, heading, board[i][j], n_rows, n_cols):
             if new_beam not in seen:
-                queue.appendleft(new_beam)
-    energized = set()
-    for i, j, _ in seen:
-        energized.add((i, j))
+                queue.append(new_beam)
+    return seen
+
+
+def compute_energized(board, start):
+    beams = compute_beams(board, start)
+    energized = {(i, j) for (i, j, _) in beams}
     return len(energized)
 
 
