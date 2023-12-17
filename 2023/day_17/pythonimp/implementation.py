@@ -34,58 +34,69 @@ def parse(text):
 next_headings = {'>': '^>v', '^': '<^>', '<': 'v<^', 'v': '>v<'}
 
 
-@cache
-def find_new_headings(heading, count):
-    new_headings = next_headings[heading]
-    new_headings = [(x, 1 if (x != heading) else count + 1) for x in new_headings]
-    return new_headings
-
-
 deltas = {'>': (0, 1), '^': (-1, 0), '<': (0, -1), 'v': (1, 0)}
 
 
 def find_best_cost(board, min_count, max_count):
     n_rows = len(board)
     n_cols = len(board[0])
-    end = (n_rows - 1, n_cols - 1)
     start = (0, 0)
+    end = (n_rows - 1, n_cols - 1)
+
+    @cache
+    def find_new_headings_info(heading, count):
+        values = []
+        for new_heading in next_headings[heading]:
+            is_new_heading = heading != new_heading
+            if is_new_heading:
+                if count < min_count:
+                    continue
+                new_count = 1
+            else:
+                if count >= max_count:
+                    continue
+                new_count = count + 1
+            di, dj = deltas[new_heading]
+            values.append((new_heading, new_count, di, dj))
+        return tuple(values)
+
     best_cost = inf
+    queue = []
+    heappush(queue, (0, *start, '>', 1))
     # For part-2 we have to assume we start out heading east, but I can't find
     # that in description. Part-1 worked either way.
-    queue = []
-    heappush(queue, (inf, *start, '>', 1, 0))  # , (*start, 'v', 1, 0)])
+    # heappush(queue, (inf, *start, 'v', 1, 0))
     seen = {}
+    max_possible_cost = 9 * sum(end)
+    max_count_plus_one = max_count + 1
     while queue:
-        _, i0, j0, last_heading, count, cost = heappop(queue)
-        if cost >= best_cost:
-            continue
-        if (i0, j0) == end and count >= min_count:
-            best_cost = min(best_cost, cost)
-            continue
-        key = (i0, j0, last_heading)
+        cost, i, j, heading, count = heappop(queue)
+
+        key = (i, j, heading)
         if key in seen:
             prev_costs = seen[key]
-            if min_count <= 1:
-                target_cost = min(prev_costs[: count + 1])
-            else:
-                target_cost = prev_costs[count]
-            if cost >= target_cost:
+            if cost >= prev_costs[count]:
+                continue
+            if min_count <= 1 and cost >= min(prev_costs[:count]):
                 continue
         else:
-            seen[key] = [inf] * (max_count + 1)
+            seen[key] = [max_possible_cost] * max_count_plus_one
         seen[key][count] = cost
-        # TODO: move find_new_heading inside function,
-        # compute new_count there and cache it.
-        for heading, new_count in find_new_headings(last_heading, count):
-            if new_count > max_count:
-                continue
-            if new_count == 1 and 1 <= count < min_count:
-                continue
-            di, dj = deltas[heading]
-            i = i0 + di
-            j = j0 + dj
-            if 0 <= i < n_rows and 0 <= j < n_cols:
-                heappush(queue, (cost, i, j, heading, new_count, cost + board[i][j]))
+        if cost >= best_cost:
+            continue
+        if (i, j) == end and count >= min_count:
+            best_cost = cost
+            continue
+        for new_heading, new_count, di, dj in find_new_headings_info(heading, count):
+            new_i = i + di
+            new_j = j + dj
+            if 0 <= new_i < n_rows and 0 <= new_j < n_cols:
+                new_cost = cost + board[new_i][new_j]
+                if new_cost < best_cost:
+                    heappush(
+                        queue,
+                        (new_cost, new_i, new_j, new_heading, new_count),
+                    )
     return best_cost
 
 
