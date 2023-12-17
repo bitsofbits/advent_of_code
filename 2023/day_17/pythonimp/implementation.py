@@ -43,13 +43,13 @@ def find_new_headings(heading, count):
 deltas = {'>': (0, 1), '^': (-1, 0), '<': (0, -1), 'v': (1, 0)}
 
 
-def find_best_cost(board, min_count=0, max_count=3):
+def find_best_cost(board, min_count, max_count):
     n_rows = len(board)
     n_cols = len(board[0])
     end = (n_rows - 1, n_cols - 1)
     start = (0, 0)
     best_cost = inf
-    queue = deque([(*start, '>', 0, 0), (*start, 'v', 0, 0)])
+    queue = deque([(*start, '>', 1, 0)])  # , (*start, 'v', 1, 0)])
     seen = {}
     while queue:
         i0, j0, last_heading, count, cost = queue.popleft()
@@ -61,23 +61,21 @@ def find_best_cost(board, min_count=0, max_count=3):
         key = (i0, j0, last_heading)
         if key in seen:
             prev_costs = seen[key]
-            target_cost = min(prev_costs[:count])
+            if min_count <= 1:
+                target_cost = min(prev_costs[: count + 1])
+            else:
+                target_cost = prev_costs[count]
             if cost >= target_cost:
                 continue
         else:
-            seen[key] = [inf] * max_count
-        seen[key][count - 1] = cost
+            seen[key] = [inf] * (max_count + 1)
+        seen[key][count] = cost
         for heading, new_count in find_new_headings(last_heading, count):
             if new_count > max_count:
                 continue
-            if new_count == 1 and 1 <= count <= min_count:
-                assert heading != last_heading, (
-                    heading,
-                    last_heading,
-                    new_count,
-                    count,
-                )
-                # print(new_count, count)
+            assert 1 <= new_count <= max_count
+            if new_count == 1 and 1 <= count < min_count:
+                assert heading != last_heading
                 continue
             di, dj = deltas[heading]
             i = i0 + di
@@ -93,7 +91,7 @@ def part_1(text):
     102
     """
     board = parse(text)
-    return find_best_cost(board, min_count=0, max_count=3)
+    return find_best_cost(board, min_count=1, max_count=3)
 
 
 def part_2(text):
@@ -103,6 +101,8 @@ def part_2(text):
 
     >>> part_2(EXAMPLE2_TEXT)
     71
+
+    # 1177 is too low
     """
     board = parse(text)
     return find_best_cost(board, min_count=4, max_count=10)
