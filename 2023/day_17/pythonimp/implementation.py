@@ -62,7 +62,7 @@ def find_best_cost(board, min_count, max_count):
     heappush(queue, (0, 1, i0, j0, '>'))
     # For part-2 we have to assume we start out heading east, but I can't find
     # that in description. Part-1 worked either way.
-    # heappush(queue, (0, i0, j0, 'v', 1))
+    # heappush(queue, (0, 1, i0, j0, 'v'))
     max_count_plus_one = max_count + 1
     state_to_costs = {}
     while queue:
