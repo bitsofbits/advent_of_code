@@ -1,5 +1,6 @@
-from collections import deque
+# from collections import deque
 from functools import cache
+from heapq import heapify, heappop, heappush
 
 from numpy import inf
 
@@ -49,10 +50,13 @@ def find_best_cost(board, min_count, max_count):
     end = (n_rows - 1, n_cols - 1)
     start = (0, 0)
     best_cost = inf
-    queue = deque([(*start, '>', 1, 0)])  # , (*start, 'v', 1, 0)])
+    # For part-2 we have to assume we start out heading east, but I can't find
+    # that in description. Part-1 worked either way.
+    queue = []
+    heappush(queue, (inf, *start, '>', 1, 0))  # , (*start, 'v', 1, 0)])
     seen = {}
     while queue:
-        i0, j0, last_heading, count, cost = queue.popleft()
+        _, i0, j0, last_heading, count, cost = heappop(queue)
         if cost >= best_cost:
             continue
         if (i0, j0) == end and count >= min_count:
@@ -70,18 +74,18 @@ def find_best_cost(board, min_count, max_count):
         else:
             seen[key] = [inf] * (max_count + 1)
         seen[key][count] = cost
+        # TODO: move find_new_heading inside function,
+        # compute new_count there and cache it.
         for heading, new_count in find_new_headings(last_heading, count):
             if new_count > max_count:
                 continue
-            assert 1 <= new_count <= max_count
             if new_count == 1 and 1 <= count < min_count:
-                assert heading != last_heading
                 continue
             di, dj = deltas[heading]
             i = i0 + di
             j = j0 + dj
             if 0 <= i < n_rows and 0 <= j < n_cols:
-                queue.append((i, j, heading, new_count, cost + board[i][j]))
+                heappush(queue, (cost, i, j, heading, new_count, cost + board[i][j]))
     return best_cost
 
 
