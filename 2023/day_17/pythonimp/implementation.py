@@ -29,74 +29,76 @@ def parse(text):
     return board
 
 
-# Because it is difficult to keep the top-heavy crucible going in a straight line for very long, it can move at most three blocks in a single direction before it must turn 90 degrees left or right. The crucible also can't reverse direction; after entering each city block, it may only turn left, continue straight, or turn right.
-
 next_headings = {'>': '^>v', '^': '<^>', '<': 'v<^', 'v': '>v<'}
-
-
 deltas = {'>': (0, 1), '^': (-1, 0), '<': (0, -1), 'v': (1, 0)}
+
+
+@cache
+def find_new_headings_info(heading, count, min_count, max_count):
+    values = []
+    for new_heading in next_headings[heading]:
+        is_new_heading = heading != new_heading
+        if is_new_heading:
+            if count < min_count:
+                continue
+            new_count = 1
+        else:
+            if count >= max_count:
+                continue
+            new_count = count + 1
+        di, dj = deltas[new_heading]
+        values.append((new_heading, new_count, di, dj))
+    return tuple(values)
 
 
 def find_best_cost(board, min_count, max_count):
     n_rows = len(board)
     n_cols = len(board[0])
-    start = (0, 0)
-    end = (n_rows - 1, n_cols - 1)
-
-    @cache
-    def find_new_headings_info(heading, count):
-        values = []
-        for new_heading in next_headings[heading]:
-            is_new_heading = heading != new_heading
-            if is_new_heading:
-                if count < min_count:
-                    continue
-                new_count = 1
-            else:
-                if count >= max_count:
-                    continue
-                new_count = count + 1
-            di, dj = deltas[new_heading]
-            values.append((new_heading, new_count, di, dj))
-        return tuple(values)
-
-    best_cost = inf
+    i0, j0 = (0, 0)
+    i1, j1 = (n_rows - 1, n_cols - 1)
+    max_possible_cost = 9 * (i1 + j1)
+    best_cost = max_possible_cost
     queue = []
-    heappush(queue, (0, *start, '>', 1))
+    heappush(queue, (0, i0, j0, '>', 1))
     # For part-2 we have to assume we start out heading east, but I can't find
     # that in description. Part-1 worked either way.
-    # heappush(queue, (inf, *start, 'v', 1, 0))
-    seen = {}
-    max_possible_cost = 9 * sum(end)
+    # heappush(queue, (0, i0, j0, 'v', 1))
     max_count_plus_one = max_count + 1
+    state_to_costs = {}
     while queue:
         cost, i, j, heading, count = heappop(queue)
-
-        key = (i, j, heading)
-        if key in seen:
-            prev_costs = seen[key]
-            if cost >= prev_costs[count]:
-                continue
-            if min_count <= 1 and cost >= min(prev_costs[:count]):
-                continue
-        else:
-            seen[key] = [max_possible_cost] * max_count_plus_one
-        seen[key][count] = cost
+        # If this is already worse than our current best cost, quit
         if cost >= best_cost:
             continue
-        if (i, j) == end and count >= min_count:
+        # If we've our finish condition, record best cost and quit
+        if i == i1 and j == j1 and count >= min_count:
             best_cost = cost
             continue
-        for new_heading, new_count, di, dj in find_new_headings_info(heading, count):
-            new_i = i + di
-            new_j = j + dj
-            if 0 <= new_i < n_rows and 0 <= new_j < n_cols:
+        for new_heading, new_count, di, dj in find_new_headings_info(
+            heading, count, min_count, max_count
+        ):
+            if 0 <= (new_i := i + di) < n_rows and 0 <= (new_j := j + dj) < n_cols:
                 new_cost = cost + board[new_i][new_j]
-                if new_cost < best_cost:
-                    heappush(
-                        queue,
-                        (new_cost, new_i, new_j, new_heading, new_count),
-                    )
+                # If we've seen this state before and it was better last time, quit
+                key = (new_i, new_j, new_heading)
+                if key in state_to_costs:
+                    costs = state_to_costs[key]
+                    if new_cost >= costs[new_count]:
+                        continue
+                    if min_count <= 1:
+                        # Lower counts are always better for part 1 -- exploiting this
+                        # doubles the speed but doesn't work for 2 since lower counts
+                        # may not be better there.
+                        if new_cost >= min(costs[:new_count]):
+                            continue
+                else:
+                    state_to_costs[key] = [max_possible_cost] * max_count_plus_one
+                state_to_costs[key][new_count] = new_cost
+                #
+                heappush(
+                    queue,
+                    (new_cost, new_i, new_j, new_heading, new_count),
+                )
     return best_cost
 
 
