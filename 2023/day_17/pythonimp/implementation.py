@@ -59,14 +59,14 @@ def find_best_cost(board, min_count, max_count):
     max_possible_cost = 9 * (i1 + j1)
     best_cost = max_possible_cost
     queue = []
-    heappush(queue, (0, i0, j0, '>', 1))
+    heappush(queue, (0, 1, i0, j0, '>'))
     # For part-2 we have to assume we start out heading east, but I can't find
     # that in description. Part-1 worked either way.
     # heappush(queue, (0, i0, j0, 'v', 1))
     max_count_plus_one = max_count + 1
     state_to_costs = {}
     while queue:
-        cost, i, j, heading, count = heappop(queue)
+        cost, count, i, j, heading = heappop(queue)
         # If this is already worse than our current best cost, quit
         if cost >= best_cost:
             continue
@@ -91,16 +91,13 @@ def find_best_cost(board, min_count, max_count):
                         # may not be better there.
                         if new_cost >= min(costs[:new_count]):
                             continue
-                    # I suspect that there's a way to exploit the partial symmetry
-                    # between directions to further prune this, but not going to try
-                    # right now.
                 else:
                     state_to_costs[key] = [max_possible_cost] * max_count_plus_one
                 state_to_costs[key][new_count] = new_cost
                 #
                 heappush(
                     queue,
-                    (new_cost, new_i, new_j, new_heading, new_count),
+                    (new_cost, new_count, new_i, new_j, new_heading),
                 )
     return best_cost
 
