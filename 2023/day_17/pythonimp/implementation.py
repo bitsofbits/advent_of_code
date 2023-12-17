@@ -91,6 +91,9 @@ def find_best_cost(board, min_count, max_count):
                         # may not be better there.
                         if new_cost >= min(costs[:new_count]):
                             continue
+                    # I suspect that there's a way to exploit the partial symmetry
+                    # between directions to further prune this, but not going to try
+                    # right now.
                 else:
                     state_to_costs[key] = [max_possible_cost] * max_count_plus_one
                 state_to_costs[key][new_count] = new_cost
