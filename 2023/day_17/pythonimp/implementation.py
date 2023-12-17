@@ -85,11 +85,10 @@ def find_best_cost(board, min_count, max_count):
                     costs = state_to_costs[key]
                     if new_cost >= costs[new_count]:
                         continue
-                    if min_count <= 1:
-                        # Lower counts are always better for part 1 -- exploiting this
-                        # doubles the speed but doesn't work for 2 since lower counts
-                        # may not be better there.
-                        if new_cost >= min(costs[:new_count]):
+                    if min_count < new_count:
+                        # Lower counts are better once we get to min_count, since there
+                        # are more options
+                        if new_cost >= min(costs[min_count:new_count]):
                             continue
                 else:
                     state_to_costs[key] = [max_possible_cost] * max_count_plus_one
