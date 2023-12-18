@@ -92,10 +92,6 @@ def instructions_to_area(instructions):
     # => interior_area = cross_product_area - perimeter / 2 + 1
     # => area = cross_product_area + perimeter / 2 + 1
 
-perimeter area = P
-CPA = C + P/2 - 1 => C = CPA - P / 2 + 1
-AREA = C + P = CPA + P / 2 + 1
-
 
 def part_1(text):
     """
