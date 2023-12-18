@@ -85,15 +85,14 @@ def find_best_cost(board, min_count, max_count):
                     costs = state_to_costs[key]
                     if new_cost >= costs[new_count]:
                         continue
-                    if min_count < new_count:
-                        # Lower counts are better once we get to min_count, since there
-                        # are more options
-                        if new_cost >= min(costs[min_count:new_count]):
-                            continue
                 else:
-                    state_to_costs[key] = [max_possible_cost] * max_count_plus_one
-                state_to_costs[key][new_count] = new_cost
-                #
+                    costs = [max_possible_cost] * max_count_plus_one
+                    state_to_costs[key] = costs
+                if new_count >= min_count:
+                    for c in range(new_count, max_count_plus_one):
+                        costs[c] = new_cost
+                else:
+                    costs[new_count] = new_cost
                 heappush(
                     queue,
                     (new_cost, new_count, new_i, new_j, new_heading),
