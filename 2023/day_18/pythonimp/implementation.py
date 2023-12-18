@@ -34,19 +34,6 @@ def find_bounds(map):
     return min_i, max_i, min_j, max_j
 
 
-def flood_fill(i0, j0, map):
-    stack = [(i0, j0)]
-    while stack:
-        i, j = stack.pop()
-        if (i, j) in map:
-            continue
-        map.add((i, j))
-        stack.append((i + 1, j))
-        stack.append((i - 1, j))
-        stack.append((i, j + 1))
-        stack.append((i, j - 1))
-
-
 def decode_hex(text):
     """(#70c710)"""
     text = text[2:-1]  # strip '(#..)'
@@ -66,26 +53,13 @@ def render(map):
     return '\n'.join(lines)
 
 
-def guess_flood_fill_start(map):
-    min_i, max_i, min_j, max_j = find_bounds(map)
-    di = max_i - min_i + 1
-    dj = max_j - min_j + 1
-    i0 = min_i + di // 2
-    j0 = min_j + dj // 2
-    return i0, j0
-
-
-# def compute_area(map):
-#     min_i, max_i, min_j, max_j = find_bounds(map)
-#     di = max_i - min_i + 1
-#     dj = max_j - min_j + 1
-#     for i in range()
-def area(p):
-    return 0.5 * abs(sum(x0 * y1 - x1 * y0 for ((x0, y0), (x1, y1)) in segments(p)))
-
-
-def segments(p):
-    return zip(p, p[1:] + [p[0]])
+def area(polygon):
+    total = 0
+    x0, y0 = polygon[-1]
+    for x1, y1 in polygon:
+        total += x1 * y0 - x0 * y1
+        x0, y0 = x1, y1
+    return 0.5 * total
 
 
 def as_polygon(instructions):
@@ -100,36 +74,48 @@ def as_polygon(instructions):
     return poly[:-1]
 
 
+def instructions_to_area(instructions):
+    instructions = list(instructions)
+    poly = as_polygon(instructions)
+    # This is the area inside the midpoint of each cell
+    cross_product_area = area(poly)
+    # To get the true area we need to add half the perimeter
+    perimeter = sum(x[1] for x in instructions)
+    # But there is an extra 1 arises because
+    # we get a net extra of 4 1/4 squares at the corners. For complex shapes
+    # there will be some squares with extra and some with missing 1/4 cells,
+    # but they cancel out leaving a net of +1.
+    return cross_product_area + perimeter / 2 + 1
+    # You can also get to the above result using Pick's theorem:
+    # area = interior_area + perimeter
+    # cross_product_area = interior_area + perimeter / 2 - 1 (Pike's theorem)
+    # => interior_area = cross_product_area - perimeter / 2 + 1
+    # => area = cross_product_area + perimeter / 2 + 1
+
+perimeter area = P
+CPA = C + P/2 - 1 => C = CPA - P / 2 + 1
+AREA = C + P = CPA + P / 2 + 1
+
+
 def part_1(text):
     """
     >>> part_1(EXAMPLE_TEXT)
-    62.0
+    62
 
     43814
     """
-    instructions = list(parse(text))
-    poly = as_polygon(instructions)
-    circumfrence = sum(x[1] for x in instructions)
-    return area(poly) + circumfrence / 2 + 1
-    # map = find_trench(instructions)
-    # # print(render(map))
-    # i0, j0 = guess_flood_fill_start(map)
-    # # print()
-    # flood_fill(i0, j0, map)
-    # # print(render(map))
-    # return len(map)
+    instructions = parse(text)
+    return int(instructions_to_area(instructions))
 
 
 def part_2(text):
     """
     >>> part_2(EXAMPLE_TEXT)
-    952408144115.0
+    952408144115
     """
     wrong_instructions = parse(text)
     instructions = [(*decode_hex(color), None) for (_, _, color) in wrong_instructions]
-    poly = as_polygon(instructions)
-    circumfrence = sum(x[1] for x in instructions)
-    return area(poly) + circumfrence / 2 + 1
+    return int(instructions_to_area(instructions))
 
 
 if __name__ == "__main__":
