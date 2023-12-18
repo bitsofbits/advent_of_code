@@ -54,50 +54,46 @@ def find_new_headings_info(heading, count, min_count, max_count):
 def find_best_cost(board, min_count, max_count):
     n_rows = len(board)
     n_cols = len(board[0])
-    i0, j0 = (0, 0)
-    i1, j1 = (n_rows - 1, n_cols - 1)
-    max_possible_cost = 9 * (i1 + j1)
-    best_cost = max_possible_cost
-    queue = []
-    heappush(queue, (0, 1, i0, j0, '>'))
+    i1, j1 = n_rows - 1, n_cols - 1
+    priority_queue = []
+    heappush(priority_queue, (0, 1, 0, 0, '>'))
+    visited = {(0, 0, '>'): 0b1 << 1}
     # For part-2 we have to assume we start out heading east, but I can't find
     # that in description. Part-1 worked either way.
-    # heappush(queue, (0, 1, i0, j0, 'v'))
-    max_count_plus_one = max_count + 1
-    state_to_costs = {}
-    while queue:
-        cost, count, i, j, heading = heappop(queue)
-        # If this is already worse than our current best cost, quit
-        if cost >= best_cost:
-            continue
-        # If we've our finish condition, record best cost and quit
+    while priority_queue:
+        cost, count, i, j, heading = heappop(priority_queue)
+        # If we've our finish condition, return current cost
         if i == i1 and j == j1 and count >= min_count:
-            best_cost = cost
-            continue
+            return cost
         for new_heading, new_count, di, dj in find_new_headings_info(
             heading, count, min_count, max_count
         ):
             if 0 <= (new_i := i + di) < n_rows and 0 <= (new_j := j + dj) < n_cols:
                 new_cost = cost + board[new_i][new_j]
-                # If we've seen this state before and it was better last time, quit
+                # If we've seen this state before and it was better last time, skip
                 key = (new_i, new_j, new_heading)
-                if key in state_to_costs:
-                    costs = state_to_costs[key]
-                    if new_cost >= costs[new_count]:
+                new_count_bit_vector = 1 << new_count
+                if key in visited:
+                    visited_at_count = visited[key]
+                    if visited_at_count & new_count_bit_vector:
+                        # If we've seen this state before skip it
                         continue
+                    # Set the current state as visited
+                    visited_at_count |= new_count_bit_vector
                 else:
-                    costs = [max_possible_cost] * max_count_plus_one
-                    state_to_costs[key] = costs
+                    # Create a new bit vector for this key and mark this state as visited
+                    visited_at_count = new_count_bit_vector
                 if new_count >= min_count:
-                    for c in range(new_count, max_count_plus_one):
-                        costs[c] = new_cost
-                else:
-                    costs[new_count] = new_cost
+                    # If new_count >= min_count, all higher counts are worse
+                    # This sets all the bits at and above new_count
+                    visited_at_count |= ~0 << new_count
+                visited[key] = visited_at_count
+
                 heappush(
-                    queue,
+                    priority_queue,
                     (new_cost, new_count, new_i, new_j, new_heading),
                 )
-    return best_cost
+    raise RuntimeError("no path found")
 
 
 def part_1(text):
