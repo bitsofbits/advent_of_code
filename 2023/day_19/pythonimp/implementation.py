@@ -78,11 +78,6 @@ def process_interval(workflow, part):
     ('px', {'x': (1, 4001), 'm': (1, 4001), 'a': (1, 4001), 's': (1, 1351)})
     >>> b
     ('qqz', {'x': (1, 4001), 'm': (1, 4001), 'a': (1, 4001), 's': (1351, 4001)})
-
-
-
-
-
     """
     part = part.copy()
     for rule in workflow:
@@ -115,10 +110,6 @@ def part_2(text):
     >>> part_2(EXAMPLE_TEXT)
     167409079868000
     """
-    # Try dumb way first
-
-    # Need to do interval arithmetic as for earlier puzzle
-
     workflows, _ = parse(text)
     successful_ranges = []
     unclassified_parts = [
@@ -140,7 +131,6 @@ def part_2(text):
         for lower, upper in part.values():
             n *= upper - lower
         count += n
-
     return count
 
 
