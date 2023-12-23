@@ -160,7 +160,7 @@ def simplify_edges(edges, start, end):
     inputs = {}
     outputs = {}
     weights = {}
-    nodes = set(x[0] for x in new_edges) | set(x[1] for x in new_edges)
+    nodes = set(x[0] for x in new_edges) | set(x[1] for x in new_edges) - {start, end}
     for source, target, weight in new_edges:
         if target not in inputs:
             inputs[target] = set()
@@ -174,17 +174,10 @@ def simplify_edges(edges, start, end):
     while changed:
         changed = False
         for node in nodes:
-            if node in (start, end):
-                continue
             if len(inputs[node]) == len(outputs[node]) == 2:
                 if inputs[node] == outputs[node]:
                     # Remove this node
                     node_1, node_2 = inputs[node]
-                    if node_1 == node_2:
-                        continue
-                    if {node_1, node_2} & {start, end, node}:
-                        continue
-
                     for parent, child in [(node_1, node_2), (node_2, node_1)]:
                         new_outputs = set()
                         for nd in outputs[parent]:
@@ -240,7 +233,6 @@ def find_longest_path_edges(edges, start, end):
     initial_state = frozenset([start])
     queue = [(0, initial_state, start)]
     max_length = 0
-    # seen = {}
     source_to_targets = {}
     weights = {}
     for source, target, weight in edges:
@@ -250,9 +242,6 @@ def find_longest_path_edges(edges, start, end):
         weights[source, target] = weight
     while queue:
         negative_length, state, node = heappop(queue)
-        # if state in seen and seen[state] < negative_length:
-        #     continue
-        # seen[state] = negative_length
         if node == end:
             max_length = max(max_length, -negative_length)
             continue
