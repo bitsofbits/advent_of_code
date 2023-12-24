@@ -204,13 +204,7 @@ def part_1(text):
 def part_2(text):
     """
     >>> part_2(INPUT_TEXT)
-
-    vl -> 1
-    cz -> 2
-    dk -> 8
-    cb -> 16 (odd
-
-    243081086866484 is too high
+    243081086866483
     """
     network = build_network(parse(text))
     # for k, v in network.items():
@@ -226,22 +220,13 @@ def part_2(text):
         for k, v in values.items():
             if v[1] > 0:
                 pulse_times[k].append(i)
-    for k, v in pulse_times.items():
-        print(k, v[:10])
+        if all(len(v) >= 3 for v in pulse_times.values()):
+            break
+    # for k, v in pulse_times.items():
+    #     print(k, v[:10])
     periods = [x[0] for x in pulse_times.values()]
     math.gcd(*periods) == 0
     return math.lcm(*periods)
-    # assert len(state_changes) == len(mr_state)
-    # cycle_info = {}
-    # for k, v in state_changes.items():
-    #     print(k)
-    #     print([x[0] for x in v[-32:]])
-    # assert len(v) >= 5
-    # d1 = v[-3][0] - v[-5][0]
-    # d2 = v[-1][0] - v[-3][0]
-    # assert d1 == d2, (d1, d2, v[-3:])
-    # i0 = v[-3][0] if v[-3][1] else v[-2][0]
-    # cycle_info[k] = (i0, d1)
 
 
 if __name__ == "__main__":
