@@ -1,6 +1,4 @@
-from collections import defaultdict
 from heapq import heappop, heappush
-from math import inf
 
 
 def render(board, path=()):
@@ -160,7 +158,7 @@ def simplify_edges(edges, start, end):
     inputs = {}
     outputs = {}
     weights = {}
-    nodes = set(x[0] for x in new_edges) | set(x[1] for x in new_edges) - {start, end}
+    nodes = (set(x[0] for x in new_edges) | set(x[1] for x in new_edges)) - {start, end}
     for source, target, weight in new_edges:
         if target not in inputs:
             inputs[target] = set()
@@ -170,44 +168,37 @@ def simplify_edges(edges, start, end):
         outputs[source].add(target)
         weights[source, target] = weight
 
-    changed = True
-    while changed:
-        changed = False
+    while True:
         for node in nodes:
-            if len(inputs[node]) == len(outputs[node]) == 2:
-                if inputs[node] == outputs[node]:
-                    # Remove this node
-                    node_1, node_2 = inputs[node]
-                    for parent, child in [(node_1, node_2), (node_2, node_1)]:
-                        new_outputs = set()
-                        for nd in outputs[parent]:
-                            if nd == node:
-                                new_outputs.add(child)
-                            else:
-                                new_outputs.add(nd)
-                        outputs[parent] = new_outputs
-
-                        new_inputs = set()
-                        for nd in inputs[child]:
-                            if nd == node:
-                                new_inputs.add(parent)
-                            else:
-                                new_inputs.add(nd)
-                        inputs[child] = new_inputs
-
-                        weights[parent, child] = (
-                            weights[parent, node] + weights[node, child]
+            assert node not in (start, end)
+            if len(outputs[node]) != 2 or len(inputs[node]) != 2:
+                continue
+            for child in outputs[node]:
+                for parent in inputs[node]:
+                    if child != parent:
+                        weights[parent, child] = max(
+                            weights.get((parent, child), 0),
+                            weights.get((parent, node), 0)
+                            + weights.get((node, child), 0),
                         )
-
-                        weights.pop((parent, node))
-                        weights.pop(node, child)
-
-                    inputs.pop(node)
-                    outputs.pop(node)
-                    nodes.remove(node)
-
-                changed = True
-                break
+                        outputs[parent] = {
+                            child if (x == node) else x for x in outputs.get(parent, ())
+                        }
+                        inputs[child] = {
+                            parent if (x == node) else x for x in inputs.get(child, ())
+                        }
+                        assert node not in outputs[parent]
+                        assert node not in inputs[child]
+            for child in outputs[node]:
+                weights.pop((node, child), 0)
+            for parent in inputs[node]:
+                weights.pop((parent, node), 0)
+            inputs.pop(node)
+            outputs.pop(node)
+            nodes.remove(node)
+            break
+        else:
+            break
 
     new_edges = []
     for source, targets in outputs.items():
@@ -230,8 +221,8 @@ def path_length(path, weights):
 
 def find_longest_path_edges(edges, start, end):
     edges = simplify_edges(edges, start, end)
-    initial_state = frozenset([start])
-    queue = [(0, initial_state, start)]
+    initial_visited = frozenset([start])
+    queue = [(0, initial_visited, start)]
     max_length = 0
     source_to_targets = {}
     weights = {}
@@ -241,16 +232,16 @@ def find_longest_path_edges(edges, start, end):
         source_to_targets[source].append(target)
         weights[source, target] = weight
     while queue:
-        negative_length, state, node = heappop(queue)
+        negative_length, visited, node = queue.pop()
         if node == end:
             max_length = max(max_length, -negative_length)
             continue
         for next_node in source_to_targets[node]:
-            if next_node in state:
+            if next_node in visited:
                 continue
-            next_state = state | {next_node}
+            next_visited = visited | {next_node}
             next_negative_length = negative_length - weights[node, next_node]
-            heappush(queue, (next_negative_length, next_state, next_node))
+            queue.append((next_negative_length, next_visited, next_node))
     return max_length
 
 
@@ -259,8 +250,7 @@ def part_2(text):
     >>> part_2(EXAMPLE_TEXT)
     154
 
-    6234 is too low
-    6490 is too low (and is someone elses answer)
+    inputs -> 6718
     """
     board = parse(text)
     edges, start, end = board_to_graph(board, boring_deltas)
