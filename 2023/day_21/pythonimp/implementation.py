@@ -112,89 +112,6 @@ def check_board(board, height, width, start):
             raise ValueError()
 
 
-# def part_2b(text, steps=26501365, check=False, use_simple=False):
-#     """
-
-#             Check that baseline application works by using on known answers
-#             # >>> part_2b(EXAMPLE_TEXT, 0, use_simple=True)
-#             # 1
-#             # >>> part_2b(EXAMPLE_TEXT, 1, use_simple=True)
-#             # 2
-#             # >>> part_2b(EXAMPLE_TEXT, 2, use_simple=True)
-#             # 4
-#             >>> part_2b(EXAMPLE_TEXT, 50, use_simple=True)
-#             1594
-#             >>> part_2b(EXAMPLE_TEXT, 100, use_simple=True)
-#             6536
-
-
-#             # >>> part_2b(EXAMPLE_TEXT, 500, use_simple=True)
-#             # 167004
-#             # >>> part_2b(EXAMPLE_TEXT, 1000, use_simple=True)
-#             # 668697
-
-#             Check that our answer aggrees with baseline for inputs
-#             (We can't test on example, because example doeesn't have
-#             corridor to edge)
-#             # >>> part_2b(INPUT_TEXT, 460, check=True)
-#             # 193425
-
-#             # >>> part_2b(INPUT_TEXT, 11, check=True)
-#             # 137
-#             # >>> part_2b(INPUT_TEXT, 3 * 55, check=True)
-#             # 25011
-#             # >>> part_2b(INPUT_TEXT, 5 * 55, check=True)
-#             # 69268
-
-
-#             # >>> part_2b(INPUT_TEXT, 230, check=True)
-#             # 48597
-#             # >>> part_2b(INPUT_TEXT, 235, check=True)
-#             # 50748
-
-#             # And yet, our final answer is wrong :-()
-#             # >>> part_2b(INPUT_TEXT, 26501365)
-#             # 639049776221087
-
-#     639049776221087 is wrong too :-<
-
-#         639133427009413
-
-#              ???
-
-#             # 638192165569450 is too low :-()
-#             # 638192183371494 is wrong after fixing padding
-
-#             # 638192138461059 is wrong bad parity fix
-
-#             # 640074636660942 (flipped parity answer is wrong)
-#     """
-#     board, height, width, start = parse(text)
-#     assert height == width
-#     size = height
-
-#     import numpy as np
-
-#     t0 = steps % (2 * size) + (2 * size)
-#     times = t0, t0 + 2 * size, t0 + 4 * size, t0 + 6 * size, t0 + 8 * size
-#     values = []
-#     for t in times:
-#         values.append(len(possible_visits_2_naive(board, size, size, start, t)))
-
-#     poly = np.polyfit(times, values, 4)
-#     total = int(round(np.poly1d(poly)(steps)))
-
-#     if check:
-#         expected = len(possible_visits_2_naive(board, size, size, start, steps))
-#         assert expected == total, (
-#             expected,
-#             total,
-#             expected - total,
-#         )
-
-#     return total
-
-
 def part_2(text, steps=26501365, check=False, use_simple=False):
     """
 
@@ -314,34 +231,6 @@ def part_2(text, steps=26501365, check=False, use_simple=False):
             (0, size - 1),
         ]:
             total += (i - 1) * get_count(remaining_steps, entry)
-
-    # for abs_n in range(0, interior_steps + boundary_size + 1):
-    #     di = (abs_n - 1) * size + size // 2 + 1 if (abs_n > 0) else 0
-    #     for abs_m in range(
-    #         max(interior_steps - boundary_size - abs_n, 0),
-    #         interior_steps + boundary_size - abs_n + 1,
-    #     ):
-    #         dj = (abs_m - 1) * size + size // 2 + 1 if (abs_m > 0) else 0
-
-    #         if (abs_n == 0 and abs_m != 0) or (abs_n != 0 and abs_m == 0):
-    #             continue
-    #         distance = di + dj
-    #         if distance > steps:
-    #             continue
-
-    #         signed_nm = set(
-    #             [(abs_n, abs_m), (abs_n, -abs_m), (-abs_n, abs_m), (-abs_n, -abs_m)]
-    #         )
-
-    #         remaining_steps = steps - distance
-
-    #         for n, m in signed_nm:
-    #             a = size // 2 + sign(n) * di
-    #             b = size // 2 + sign(m) * dj
-
-    #             normalized_entry = (a % size, b % size)
-
-    #             total += get_count(remaining_steps, normalized_entry)
 
     if check:
         expected = len(possible_visits_2_naive(board, size, size, start, steps))
