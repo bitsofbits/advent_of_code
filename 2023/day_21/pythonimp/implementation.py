@@ -278,8 +278,6 @@ def part_2(text, steps=26501365, check=False, use_simple=False):
             if v <= remaining_steps and v % 2 == local_parity
         )
 
-        # return sum(1 for (i, j) in seen if 0 <= i < size and 0 <= j < size)
-
     interior_reachable_even = get_count(3 * size, start, 0)
     interior_reachable_odd = get_count(3 * size, start, 1)
 
@@ -292,38 +290,58 @@ def part_2(text, steps=26501365, check=False, use_simple=False):
     if interior_steps - boundary_size > 0:
         total = interior_reachable[parity]
         for i in range(1, max(interior_steps - boundary_size, 0)):
-            total += 4 * (
-                interior_reachable[(parity + i) % 2]
-                + ((i - 1) // 2) * interior_reachable[(parity + i) % 2]
-                + ((i - 1) - (i - 1) // 2) * interior_reachable[(parity + i) % 2]
-            )
+            total += 4 * i * (interior_reachable[(parity + i) % 2])
     else:
-        total = 0
-    for abs_n in range(0, interior_steps + boundary_size + 1):
-        di = (abs_n - 1) * size + size // 2 + 1 if (abs_n > 0) else 0
-        for abs_m in range(
-            max(interior_steps - boundary_size - abs_n, 0),
-            interior_steps + boundary_size - abs_n + 1,
-        ):
-            dj = (abs_m - 1) * size + size // 2 + 1 if (abs_m > 0) else 0
+        total = get_count(steps, start)
 
-            distance = di + dj
-            if distance > steps:
-                continue
+    for i in range(
+        max(interior_steps - boundary_size, 1), interior_steps + boundary_size + 1
+    ):
+        remaining_steps = steps - ((i - 1) * size + size // 2 + 1)
+        for entry in [
+            (0, size // 2),
+            (size // 2, 0),
+            (size - 1, size // 2),
+            (size // 2, size - 1),
+        ]:
+            total += get_count(remaining_steps, entry)
 
-            signed_nm = set(
-                [(abs_n, abs_m), (abs_n, -abs_m), (-abs_n, abs_m), (-abs_n, -abs_m)]
-            )
+        remaining_steps = steps - ((i - 1) * size + 1)
+        for entry in [
+            (0, 0),
+            (size - 1, 0),
+            (size - 1, size - 1),
+            (0, size - 1),
+        ]:
+            total += (i - 1) * get_count(remaining_steps, entry)
 
-            remaining_steps = steps - distance
+    # for abs_n in range(0, interior_steps + boundary_size + 1):
+    #     di = (abs_n - 1) * size + size // 2 + 1 if (abs_n > 0) else 0
+    #     for abs_m in range(
+    #         max(interior_steps - boundary_size - abs_n, 0),
+    #         interior_steps + boundary_size - abs_n + 1,
+    #     ):
+    #         dj = (abs_m - 1) * size + size // 2 + 1 if (abs_m > 0) else 0
 
-            for n, m in signed_nm:
-                a = size // 2 + sign(n) * di
-                b = size // 2 + sign(m) * dj
+    #         if (abs_n == 0 and abs_m != 0) or (abs_n != 0 and abs_m == 0):
+    #             continue
+    #         distance = di + dj
+    #         if distance > steps:
+    #             continue
 
-                normalized_entry = (a % size, b % size)
+    #         signed_nm = set(
+    #             [(abs_n, abs_m), (abs_n, -abs_m), (-abs_n, abs_m), (-abs_n, -abs_m)]
+    #         )
 
-                total += get_count(remaining_steps, normalized_entry)
+    #         remaining_steps = steps - distance
+
+    #         for n, m in signed_nm:
+    #             a = size // 2 + sign(n) * di
+    #             b = size // 2 + sign(m) * dj
+
+    #             normalized_entry = (a % size, b % size)
+
+    #             total += get_count(remaining_steps, normalized_entry)
 
     if check:
         expected = len(possible_visits_2_naive(board, size, size, start, steps))
