@@ -1,5 +1,5 @@
+import math
 from collections import deque
-from itertools import count
 
 
 def parse(text):
@@ -16,6 +16,40 @@ def parse(text):
             name = name[1:]
         targets = targets.split(', ')
         yield (name, kind, targets)
+
+
+# def connected_to_rx(network):
+#     """
+#     everything is connected :-()
+#     >>> connected_to_rx(parse(INPUT_TEXT))
+#     """
+#     network = list(network)
+#     back_links = {'broadcaster': {}}
+#     links = {}
+#     for name, kind, targets in network:
+#         for target in targets:
+#             if target not in back_links:
+#                 back_links[target] = set()
+#             back_links[target].add(name)
+#             if name not in links:
+#                 links[name] = set()
+#             links[name].add(target)
+
+#     seen = set()
+#     queue = ['vl']
+#     while queue:
+#         node = queue.pop()
+#         if node in seen:
+#             continue
+#         seen.add(node)
+#         for x in links[node]:
+#             if x == 'zh':
+#                 print(node)
+#                 continue
+#             # print(node)
+#             queue.append(x)
+
+#     print(len(seen), len(network))
 
 
 class Broadcaster:
@@ -131,21 +165,23 @@ def build_network(items):
     return network
 
 
-def press_button(network):
+def press_button(network, monitor='rx'):
     pulses = [1, 0]
-    rx_low_count = 0
     queue = deque(list(network['broadcaster'].press_button().items()))
+    montored_values = {}
     while queue:
         target, (source, value) = queue.popleft()
         pulses[value] += 1
-        if target == 'rx':
-            rx_low_count += not value
+        if target == monitor:
+            if source not in montored_values:
+                montored_values[source] = [0, 0]
+            montored_values[source][bool(value)] += 1
+
         if target not in network:
-            # print(name, "not in network")
             continue
         for new_target, new_value in network[target].process(source, value).items():
             queue.append((new_target, new_value))
-    return pulses, rx_low_count
+    return pulses, montored_values
 
 
 def part_1(text):
@@ -167,40 +203,45 @@ def part_1(text):
 
 def part_2(text):
     """
-    >>> part_2(EXAMPLE_TEXT)
+    >>> part_2(INPUT_TEXT)
 
     vl -> 1
     cz -> 2
     dk -> 8
-    cb -> 16 (odd)
+    cb -> 16 (odd
 
+    243081086866484 is too high
     """
     network = build_network(parse(text))
-    for k, v in network.items():
-        print(k, len(v.inputs), v.__class__.__name__)
-    # mr_state = network['zh'].state
-    # last = mr_state.copy()
-    # state_changes = {k: [] for k in mr_state.keys()}
-    # for i in range(1, 100001):
-    #     _, rx_low_count = press_button(network)
-    #     for k, v in mr_state.items():
-    #         if v != last[k]:
-    #             state_changes[k].append((i, v))
-    #     last = mr_state.copy()
-    #     if rx_low_count == 1:
-    #         print("WHOAH")
-    #         break
+    # for k, v in network.items():
+    #     print(k, len(v.inputs), v.__class__.__name__)
+    pulse_times = {
+        'ks': [],
+        'jt': [],
+        'sx': [],
+        'kb': [],
+    }
+    for i in range(1, 100001):
+        _, values = press_button(network, monitor='zh')
+        for k, v in values.items():
+            if v[1] > 0:
+                pulse_times[k].append(i)
+    for k, v in pulse_times.items():
+        print(k, v[:10])
+    periods = [x[0] for x in pulse_times.values()]
+    math.gcd(*periods) == 0
+    return math.lcm(*periods)
     # assert len(state_changes) == len(mr_state)
     # cycle_info = {}
     # for k, v in state_changes.items():
     #     print(k)
     #     print([x[0] for x in v[-32:]])
-    #     # assert len(v) >= 5
-    #     # d1 = v[-3][0] - v[-5][0]
-    #     # d2 = v[-1][0] - v[-3][0]
-    #     # assert d1 == d2, (d1, d2, v[-3:])
-    #     # i0 = v[-3][0] if v[-3][1] else v[-2][0]
-    #     # cycle_info[k] = (i0, d1)
+    # assert len(v) >= 5
+    # d1 = v[-3][0] - v[-5][0]
+    # d2 = v[-1][0] - v[-3][0]
+    # assert d1 == d2, (d1, d2, v[-3:])
+    # i0 = v[-3][0] if v[-3][1] else v[-2][0]
+    # cycle_info[k] = (i0, d1)
 
 
 if __name__ == "__main__":
@@ -212,4 +253,6 @@ if __name__ == "__main__":
         EXAMPLE_TEXT = f.read()
     with open(data_dir / "example2.txt") as f:
         EXAMPLE2_TEXT = f.read()
+    with open(data_dir / "input.txt") as f:
+        INPUT_TEXT = f.read()
     doctest.testmod()
