@@ -1,8 +1,10 @@
 import random
 from collections import defaultdict
+from copy import deepcopy
 from functools import cache
 from heapq import heappop, heappush
-from math import inf
+from itertools import permutations
+from math import factorial, inf, log
 
 
 def parse(text):
@@ -404,92 +406,115 @@ def count_diconnected_4(nodes, edges):
 #     return f"NEW_NODE_{_edge_name_counter}"
 
 
-def _contract(edges, n=1):
+def karger_contract(nodes_to_edges, edges, final_vertext_count=2):
     # Karger: https://en.wikipedia.org/wiki/Karger%27s_algorithm
     # Could also use Stoer–Wagner
 
-    # TODO: need mappping of nodes to edges
-    # Then we can make this linear and not quadratic
+    nodes_to_edges = deepcopy(nodes_to_edges)
+    edges = edges.copy()
+
+    while len(nodes_to_edges) > final_vertext_count:
+        [target_edge] = random.choices(tuple(edges.keys()), tuple(edges.values()))
+        node_1, node_2 = target_edge
+        new_node = node_1 | node_2
+        assert new_node not in nodes_to_edges
+        edges_to_add = defaultdict(int)
+        edges_to_remove = set()
+
+        for edge_node in target_edge:
+            assert edge_node in nodes_to_edges
+            for obsolete_edge in nodes_to_edges[edge_node]:
+                node_a, node_b = obsolete_edge
+                if obsolete_edge == target_edge:
+                    edges_to_remove.add(obsolete_edge)
+                elif node_a in target_edge:
+                    assert node_b not in target_edge
+                    new_edge = frozenset([node_b, new_node])
+                    edges_to_add[new_edge] += edges[obsolete_edge]
+                    edges_to_remove.add(obsolete_edge)
+                elif node_b in target_edge:
+                    assert node_a not in target_edge
+                    new_edge = frozenset([node_a, new_node])
+                    edges_to_add[new_edge] += edges[obsolete_edge]
+                    edges_to_remove.add(obsolete_edge)
+                else:
+                    raise ValueError(obsolete_edge)
+
+        for e, n in edges_to_add.items():
+            assert e not in edges
+            edges[e] = n
+            for nd in e:
+                if nd in nodes_to_edges:
+                    nodes_to_edges[nd].add(e)
+                else:
+                    nodes_to_edges[nd] = {e}
+
+        for e in edges_to_remove:
+            del edges[e]
+            for nd in e:
+                nodes_to_edges[nd].remove(e)
+
+        nodes_to_remove = [k for (k, v) in nodes_to_edges.items() if not v]
+        for k in nodes_to_remove:
+            nodes_to_edges.pop(k)
+
+    return nodes_to_edges, edges
+
+
+def count_edges(edges):
+    return sum(edges.values())
+
+
+def karger_stein_contract(nodes_to_edges, edges):
+    if len(nodes_to_edges) < 6:
+        return karger_contract(nodes_to_edges, edges)
+    t = 1 + len(nodes_to_edges) / 2**0.5
+    G1 = karger_contract(nodes_to_edges, edges, t)
+    G2 = karger_contract(nodes_to_edges, edges, t)
+    return min(
+        karger_stein_contract(*G1),
+        karger_stein_contract(*G2),
+        key=lambda x: count_edges(x[1]),
+    )
+
+
+@cache
+def mangle_edges(edges):
+    return {frozenset([frozenset([a]), frozenset([b])]): 1 for (a, b) in edges}
+
+
+@cache
+def make_nodes_to_edges(edges):
+    mangled_edges = {frozenset([frozenset([a]), frozenset([b])]): 1 for (a, b) in edges}
 
     nodes_to_edges = defaultdict(set)
-    for edge in edges:
+    for edge in mangled_edges:
         a, b = edge
         nodes_to_edges[a].add(edge)
         nodes_to_edges[b].add(edge)
-
-    while len(edges) > n:
-        edge_to_remove = random.choice(list(edges.keys()))
-        node_1, node_2 = edge_to_remove
-        new_node = node_1 | node_2
-        new_edges = []
-        edges_to_remove = []
-
-        for edge_node in edge_to_remove:
-            assert edge_node in nodes_to_edges
-            for edge in nodes_to_edges[edge_node]:
-                node_a, node_b = edge
-                if edge == edge_to_remove:
-                    edges_to_remove.append(edge)
-                elif node_a in edge_to_remove:
-                    assert node_b not in edge_to_remove
-                    new_edges.append(frozenset([node_b, new_node]))
-                    edges_to_remove.append(edge)
-                elif node_b in edge_to_remove:
-                    assert node_a not in edge_to_remove
-                    new_edges.append(frozenset((node_a, new_node)))
-                    edges_to_remove.append(edge)
-                else:
-                    raise ValueError
-
-        for e in edges_to_remove:
-            if e in edges:
-                del edges[e]
-            for nd in e:
-                nodes_to_edges[nd] -= {e}
-
-        for e in new_edges:
-            if e in edges:
-                edges[e] += 1
-            else:
-                edges[e] = 1
-            for nd in e:
-                nodes_to_edges[nd] |= {e}
-    return edges
+    return dict(nodes_to_edges)
 
 
-def _fast_contract(edges):
-    if len(edges) < 6:
-        return _contract(edges)
-    t = 1 + len(edges) / 2**0.5
-    G1 = _contract(edges, t)
-    G2 = _contract(edges, t)
-    return min(_fast_contract(G1), _fast_contract(G2), key=len)
+def find_min_cuts(edges, n=3):
+    mangled_edges = mangle_edges(edges)
+    nodes_to_edges = make_nodes_to_edges(edges)
 
+    # This gives reasonable success probability for Karger-Stein
+    iterations = int(round(log(len(nodes_to_edges))))
 
-def contract(nodes, edges, tries=16):
-    count = inf
-    # nodes = set([frozenset([x]) for x in nodes])
-    mangled_edges = {frozenset([frozenset([a]), frozenset([b])]): 1 for (a, b) in edges}
+    best_count = inf
+    for _ in range(iterations):
+        nodes_to_edges, candidate_edges = karger_stein_contract(
+            nodes_to_edges, mangled_edges
+        )
+        count = count_edges(candidate_edges)
+        if count < best_count:
+            best_count = count
+            [(a_nodes, b_nodes)] = candidate_edges
 
-    candidates = {}
-    for _ in range(tries):
-        candidate_edges = _fast_contract(mangled_edges)
-        [edge] = set(candidate_edges)
-        count = len(candidate_edges)
-        a, b = (list(x) for x in edge)
-        for nd1 in a:
-            for nd2 in b:
-                edge = frozenset([nd1, nd2])
-                if edge in edges:
-                    if edge not in candidates:
-                        candidates[edge] = inf
-                    candidates[edge] = min(candidates[edge], count)
-    keys = sorted(candidates.keys(), key=lambda x: candidates[x])
-    choices = keys[:6]
-    for i, a in enumerate(choices):
-        for j, b in enumerate(choices[i + 1 :]):
-            for c in choices[i + j + 2 :]:
-                yield (a, b, c)
+    choices = (frozenset((a, b)) for a in a_nodes for b in b_nodes)
+    choices = (x for x in choices if x in edges)
+    return permutations(choices, n)
 
 
 def count_diconnected_5(nodes, edges):
@@ -511,24 +536,24 @@ def count_diconnected_5(nodes, edges):
         return len(seen)
 
     outputs = make_outputs(edges)
-
+    edges = tuple(edges)
     tried = set()
-    for i in range(10000):
-        for cuts in contract(nodes, edges):
+    while True:
+        for cuts in find_min_cuts(edges):
             if cuts in tried:
                 continue
-            print("Trying:", cuts)
+            # print("Trying", cuts)
             n = traverse(nodes, outputs, start, cuts=cuts)
             if n < len(nodes):
                 return n
-
-    raise ValueError("found no cuts that work")
 
 
 def part_1(text):
     """
     >>> part_1(EXAMPLE_TEXT)
     54
+
+    inputs -> 532891
     """
     nodes, edges = parse(text)
     # n = count_diconnected_3(nodes, edges)
