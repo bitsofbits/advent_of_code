@@ -1,12 +1,10 @@
-import math
-from itertools import chain
 from math import ceil, inf
 
 
 def parse(text):
     """
     >>> list(parse(EXAMPLE_TEXT))[:2]
-    [((19.0, 13.0, 30.0), (-2.0, 1.0, -2.0)), ((18.0, 19.0, 22.0), (-1.0, -1.0, -2.0))]
+    [((19, 13, 30), (-2, 1, -2)), ((18, 19, 22), (-1, -1, -2))]
     """
     for line in text.strip().split("\n"):
         p_text, v_text = line.strip().split("@")
@@ -161,7 +159,7 @@ def intersecting_rock_coordinates(points, trials=100):
     # print(forbidden_vx)
 
     for dt in range(1, trials):
-        print(dt)
+        # print(dt)
         for t0 in range(trials):
             x0, y0, z0 = (r + v * t0 for (r, v) in zip(R0, V0))
             for t1 in [t0 - dt, t0 + dt]:
@@ -383,8 +381,8 @@ def intersecting_rock_coordinates_4(points, max_tries):
     R1, V1 = points[1]
 
     for total_v in range(1, max_tries):
-        if total_v % 100 == 0:
-            print("total_v =", total_v)
+        # if total_v % 100 == 0:
+        # print("total_v =", total_v)
         for vx in range(-total_v, total_v + 1):
             for vy in range(-total_v, total_v + 1):
                 for vz in range(-total_v, total_v + 1):
@@ -435,7 +433,7 @@ def intersecting_rock_coordinates_4(points, max_tries):
                         # TODO: at this point we now we just need to scale V
                         # by N so can speed up there.
 
-                        print("found plausible speed")
+                        # print("found plausible speed")
                         t0 = (Rint[0] - R0[0]) / V0[0]
 
                         R = vsub(Rint, scale(V, t0))
@@ -485,7 +483,7 @@ def intersecting_rock_coordinates_5(points, max_tries):
     N0 = None
     for P1, V1, P2, V2 in find_intersections(points):
         N, h = find_plane(P1, V1, P2, V2)
-        print(N, h)
+        # print(N, h)
         assert close(dot(N, P1), h)
         assert close(dot(N, P2), h)
         if N0 is None:
@@ -505,7 +503,7 @@ def intersecting_rock_coordinates_5(points, max_tries):
             V = cross(N0, N1)
 
             Ra = vadd(scale(N0, c0), scale(N1, c1))
-            print(V)
+            # print(V)
 
             for i, (Ri, Vi) in enumerate(points):
                 try:
@@ -601,7 +599,7 @@ def intersecting_rock_coordinates_7(points, trials=10):
     while t_low < t_high:
         t_0 = (t_low + t_high) // 2
         N, metric = compute_N(t_0)
-        print(">>>", metric)
+        # print(">>>", metric)
         if metric < 1e-3:
             break
         if low < high:
@@ -614,7 +612,7 @@ def intersecting_rock_coordinates_7(points, trials=10):
     if metric > 1e-3:
         raise ValueError("couldn't find compatible normal")
 
-    print("Looking for second points at", t_0)
+    # print("Looking for second points at", t_0)
 
     P0int = tuple(r + v * t_0 for (r, v) in zip(R0, V0))
     P2int = as_integral(intersection(P0int, N, R2, V2))
@@ -633,10 +631,10 @@ def intersecting_rock_coordinates_7(points, trials=10):
     vz = (z2 - z0) / dt
     V = as_integral((vx, vy, vz))
 
-    print(P2int)
-    print(P0int)
-    print(V)
-    print(dt, t_2, t_0)
+    # print(P2int)
+    # print(P0int)
+    # print(V)
+    # print(dt, t_2, t_0)
     R = tuple((r - v * t_0 for (r, v) in zip((x0, y0, z0), V)))
 
     return R, None
@@ -713,7 +711,7 @@ def norm(A):
 def part_2(text, max_tries=100000):
     """
     >>> part_2(EXAMPLE_TEXT, max_tries=20)
-    47.0
+    47
 
     # 885680103420583 is too high
     """
