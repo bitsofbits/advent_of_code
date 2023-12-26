@@ -216,26 +216,43 @@ def count_diconnected_3(nodes, edges):
                     triples.add(frozenset([e1, e2, e3]))
         return triples
 
-    print("warmup")
+    # # print("warmup")
+    # # _, leftover = find_subgraphs_3(edge_set, base_sets)
+    # # skipable = set()
+    # for i, e1 in enumerate(edges):
+    #     # print("finding outer level subgraphs")
+    #     # _, leftover = find_subgraphs_3(edge_set, base_sets, cuts={e1})
+    #     # print("building")
+    #     # skipable |= as_triples(leftover | e1)
+    #     print("+++", i, "of", len(edges))
+    #     for j, e2 in enumerate(edges[i + 1 :]):
+    #         print("---", i, j)
+    #         # _, leftover_edges_2 = find_subgraphs_3(edge_set, base_sets, cuts={e1, e2})
+    #         # leftover_edges_3 = set()
+    #         for e3 in edges[i + j + 2 :]:
+    #             # if frozenset({e1, e2, e3}) in skipable:
+    #             #     continue
+    #             n, leftover = find_subgraphs_3(edge_set, base_sets, cuts={e1, e2, e3})
+    #             # add_triples(skipable, leftover | {e1, e2, e3})
+    #             if n < len(nodes):
+    #                 return n
+
+    # print("warmup")
     # _, leftover = find_subgraphs_3(edge_set, base_sets)
-    skipable = set()
-    for i, e1 in enumerate(edges):
-        # print("finding outer level subgraphs")
-        # _, leftover = find_subgraphs_3(edge_set, base_sets, cuts={e1})
-        # print("building")
-        # skipable |= as_triples(leftover | e1)
-        print("+++", i, "of", len(edges))
-        for j, e2 in enumerate(edges[i + 1 :]):
-            print("---", i, j)
-            # _, leftover_edges_2 = find_subgraphs_3(edge_set, base_sets, cuts={e1, e2})
-            # leftover_edges_3 = set()
-            for e3 in edges[i + j + 2 :]:
-                if frozenset({e1, e2, e3}) in skipable:
-                    continue
-                n, leftover = find_subgraphs_3(edge_set, base_sets, cuts={e1, e2, e3})
-                add_triples(skipable, leftover | {e1, e2, e3})
-                if n < len(nodes):
-                    return n
+    # skipable = set()
+    e1 = frozenset(('nct', 'kdk'))
+    e2 = frozenset(('mqq', 'hpx'))
+    assert e1 in edges
+    # assert e2 in edges
+    for e2 in edges:
+        for e3 in edges:
+            # print(e3)
+            # break
+            n, leftover = find_subgraphs_3(edge_set, base_sets, cuts={e1, e2, e3})
+            # add_triples(skipable, leftover | {e1, e2, e3})
+            if n < len(nodes):
+                return n
+
     raise ValueError("found no cuts that work")
 
 
@@ -391,71 +408,84 @@ def _contract(edges, n=1):
     # Karger: https://en.wikipedia.org/wiki/Karger%27s_algorithm
     # Could also use Stoer–Wagner
 
-    unique_edges = set(edges)
+    # TODO: need mappping of nodes to edges
+    # Then we can make this linear and not quadratic
 
-    while len(unique_edges) > n:
-        edge_to_remove = random.choice(list(edges))
+    nodes_to_edges = defaultdict(set)
+    for edge in edges:
+        a, b = edge
+        nodes_to_edges[a].add(edge)
+        nodes_to_edges[b].add(edge)
+
+    while len(edges) > n:
+        edge_to_remove = random.choice(list(edges.keys()))
         node_1, node_2 = edge_to_remove
         new_node = node_1 | node_2
         new_edges = []
-        doomed_edges = set()
-        for edge in edges:
-            if edge == edge_to_remove:
-                doomed_edges.add(edge)
-                continue
-            node_a, node_b = edge
-            if node_a in (node_1, node_2):
-                assert node_b not in (node_1, node_2)
-                new_edges.append(frozenset([node_b, new_node]))
-                doomed_edges.add(edge)
-            if node_b in (node_1, node_2):
-                assert node_a not in (node_1, node_2)
-                new_edges.append(frozenset((node_a, new_node)))
-                doomed_edges.add(edge)
-        edges = [x for x in edges if x not in doomed_edges]
-        edges += new_edges
-        unique_edges -= doomed_edges
-        unique_edges |= set(new_edges)
+        edges_to_remove = []
+
+        for edge_node in edge_to_remove:
+            assert edge_node in nodes_to_edges
+            for edge in nodes_to_edges[edge_node]:
+                node_a, node_b = edge
+                if edge == edge_to_remove:
+                    edges_to_remove.append(edge)
+                elif node_a in edge_to_remove:
+                    assert node_b not in edge_to_remove
+                    new_edges.append(frozenset([node_b, new_node]))
+                    edges_to_remove.append(edge)
+                elif node_b in edge_to_remove:
+                    assert node_a not in edge_to_remove
+                    new_edges.append(frozenset((node_a, new_node)))
+                    edges_to_remove.append(edge)
+                else:
+                    raise ValueError
+
+        for e in edges_to_remove:
+            if e in edges:
+                del edges[e]
+            for nd in e:
+                nodes_to_edges[nd] -= {e}
+
+        for e in new_edges:
+            if e in edges:
+                edges[e] += 1
+            else:
+                edges[e] = 1
+            for nd in e:
+                nodes_to_edges[nd] |= {e}
     return edges
 
 
 def _fast_contract(edges):
-    # print(len(nodes))
-    n_edges = len(set(edges))
-    if n_edges < 6:
+    if len(edges) < 6:
         return _contract(edges)
-    t = int(round(1 + n_edges / 2**0.5))
+    t = 1 + len(edges) / 2**0.5
     G1 = _contract(edges, t)
     G2 = _contract(edges, t)
-    # print(t, len(G1[0]), len(set(G1[1])))
-    # print(t, len(G1[0]), len(set(G1[1])))
-    e1 = _fast_contract(G1)
-    e2 = _fast_contract(G2)
-    if len(set(e1)) < len(set(e2)):
-        return e1
-    else:
-        return e2
+    return min(_fast_contract(G1), _fast_contract(G2), key=len)
 
 
-def contract(nodes, edges):
+def contract(nodes, edges, tries=16):
     count = inf
     # nodes = set([frozenset([x]) for x in nodes])
-    mangled_edges = list(
-        frozenset([frozenset([a]), frozenset([b])]) for (a, b) in edges
-    )
+    mangled_edges = {frozenset([frozenset([a]), frozenset([b])]): 1 for (a, b) in edges}
 
-    for _ in range(len(nodes)):
+    candidates = {}
+    for _ in range(tries):
         candidate_edges = _fast_contract(mangled_edges)
-        if len(candidate_edges) < count:
-            [edge] = set(candidate_edges)
-            count = len(candidate_edges)
-    a, b = (list(x) for x in edge)
-    choices = []
-    for nd1 in a:
-        for nd2 in b:
-            edge = frozenset([nd1, nd2])
-            if edge in edges:
-                choices.append(edge)
+        [edge] = set(candidate_edges)
+        count = len(candidate_edges)
+        a, b = (list(x) for x in edge)
+        for nd1 in a:
+            for nd2 in b:
+                edge = frozenset([nd1, nd2])
+                if edge in edges:
+                    if edge not in candidates:
+                        candidates[edge] = inf
+                    candidates[edge] = min(candidates[edge], count)
+    keys = sorted(candidates.keys(), key=lambda x: candidates[x])
+    choices = keys[:6]
     for i, a in enumerate(choices):
         for j, b in enumerate(choices[i + 1 :]):
             for c in choices[i + j + 2 :]:
@@ -487,6 +517,7 @@ def count_diconnected_5(nodes, edges):
         for cuts in contract(nodes, edges):
             if cuts in tried:
                 continue
+            print("Trying:", cuts)
             n = traverse(nodes, outputs, start, cuts=cuts)
             if n < len(nodes):
                 return n
@@ -500,7 +531,10 @@ def part_1(text):
     54
     """
     nodes, edges = parse(text)
+    # n = count_diconnected_3(nodes, edges)
+
     n = count_diconnected_5(nodes, edges)
+
     return n * (len(nodes) - n)
     # nodes, edges = parse(text)
     # # outputs = make_outputs(edges)
@@ -521,5 +555,17 @@ if __name__ == "__main__":
     data_dir = Path(__file__).parents[1] / "data"
     with open(data_dir / "example.txt") as f:
         EXAMPLE_TEXT = f.read()
+
+    with open(data_dir / "input.txt") as f:
+        INPUT_TEXT = f.read()
+
+    lines = INPUT_TEXT.strip().split('\n')
+    new_lines = []
+    for line in lines:
+        line = line.replace(':', ' -- {') + ' }'
+        new_lines.append(line)
+    text = '\n'.join(new_lines)
+    with open(data_dir / "graph.dot", 'w') as f:
+        f.write(text)
 
     doctest.testmod()
