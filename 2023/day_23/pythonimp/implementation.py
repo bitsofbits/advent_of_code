@@ -237,28 +237,27 @@ def find_longest_path_edges(edges, start, end):
     start = node_map[start]
     end = node_map[end]
 
-    initial_visited = start
-    queue = [(0, initial_visited, start)]
-    max_length = 0
-    source_to_targets = {1 << i: [] for (i, _) in enumerate(raw_nodes)}
+    source_to_targets = {v: [] for (i, v) in enumerate(node_map.values())}
     for source, target, weight in edges:
         source_to_targets[source].append((target, weight))
         if target == end:
             final_weight = weight
 
+    initial_visited = start
+    queue = [(0, initial_visited, start)]
+    max_length = 0
     adjacent_to_end = source_to_targets[end][0][0]
 
     while queue:
         path_length, visited, node = queue.pop()
         if node == adjacent_to_end:
             max_length = max(max_length, path_length)
-            continue
-        for next_node, weight in source_to_targets[node]:
-            if next_node & visited:
-                continue
-            next_visited = visited | next_node
-            next_path_length = path_length + weight
-            queue.append((next_path_length, next_visited, next_node))
+        else:
+            for next_node, weight in source_to_targets[node]:
+                if not next_node & visited:
+                    next_visited = visited | next_node
+                    next_path_length = path_length + weight
+                    queue.append((next_path_length, next_visited, next_node))
     return max_length + final_weight
 
 
