@@ -1,4 +1,5 @@
-from heapq import heappop, heappush
+from collections import deque
+from multiprocessing import Pool
 
 
 def render(board, path=()):
@@ -57,18 +58,16 @@ slippery_deltas = {
 }
 
 
-def part_1(text):
+def part_1(text, max_queue_size=32):
     """
-    >>> part_1(EXAMPLE_TEXT)
-    94
-    >>> part_1(EXAMPLE_TEXT)
+    >>> part_1(EXAMPLE_TEXT, max_queue_size=2)
     94
 
     input => 2306
     """
     board = parse(text)
     edges, start, end = board_to_graph(board, slippery_deltas)
-    return find_longest_path_edges(edges, start, end)
+    return find_longest_path_edges(edges, start, end, max_queue_size=max_queue_size)
 
 
 boring_deltas = {
@@ -193,7 +192,7 @@ def path_length(path, weights):
     return length
 
 
-def find_longest_path_edges(edges, start, end):
+def build_initial_state(edges, start, end):
     raw_edges = simplify_edges(edges, start, end)
     raw_nodes = set()
     for a, b, _ in raw_edges:
@@ -214,8 +213,14 @@ def find_longest_path_edges(edges, start, end):
     [(adjacent_to_end, end_cost)] = source_to_targets[end]
 
     initial_visited = start | adjacent_to_start
-    queue = [(start_cost, initial_visited, adjacent_to_start)]
+    queue = deque([(start_cost + end_cost, initial_visited, adjacent_to_start)])
     max_length = 0
+
+    return queue, adjacent_to_end, max_length, source_to_targets
+
+
+def traverse_from_state(state):
+    queue, adjacent_to_end, max_length, source_to_targets = state
 
     while queue:
         path_length, visited, node = queue.pop()
@@ -227,19 +232,43 @@ def find_longest_path_edges(edges, start, end):
                     next_visited = visited | next_node
                     next_path_length = path_length + weight
                     queue.append((next_path_length, next_visited, next_node))
-    return max_length + end_cost
+    return max_length
 
 
-def part_2(text):
+def find_longest_path_edges(edges, start, end, max_queue_size=32):
+    state = build_initial_state(edges, start, end)
+    queue, *other_state = traverse_warmup_state(state, max_queue_size=max_queue_size)
+    args = [(deque([x]),) + tuple(other_state) for x in queue]
+    with Pool() as p:
+        return max(p.imap_unordered(traverse_from_state, args))
+
+
+def traverse_warmup_state(state, max_queue_size):
+    queue, adjacent_to_end, max_length, source_to_targets = state
+
+    while queue and len(queue) < max_queue_size:
+        path_length, visited, node = queue.popleft()
+        if node == adjacent_to_end:
+            max_length = max(max_length, path_length)
+        else:
+            for next_node, weight in source_to_targets[node]:
+                if not next_node & visited:
+                    next_visited = visited | next_node
+                    next_path_length = path_length + weight
+                    queue.append((next_path_length, next_visited, next_node))
+    return queue, adjacent_to_end, max_length, source_to_targets
+
+
+def part_2(text, max_queue_size=32):
     """
-    >>> part_2(EXAMPLE_TEXT)
+    >>> part_2(EXAMPLE_TEXT, max_queue_size=1)
     154
 
     inputs -> 6718
     """
     board = parse(text)
     edges, start, end = board_to_graph(board, boring_deltas)
-    return find_longest_path_edges(edges, start, end)
+    return find_longest_path_edges(edges, start, end, max_queue_size=max_queue_size)
 
 
 if __name__ == "__main__":
