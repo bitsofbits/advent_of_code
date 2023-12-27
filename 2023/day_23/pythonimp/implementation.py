@@ -138,6 +138,7 @@ def board_to_graph(board, deltas):
             if 0 <= (i1 := i + di) < height and 0 <= (j1 := j + dj) < width:
                 if board[i1][j1] != '#':
                     edges.append(((i, j), (i1, j1)))
+                    assert (i1, j1) in nodes
 
     def as_id(i, j):
         return i * width + j
@@ -151,14 +152,14 @@ def board_to_graph(board, deltas):
 
 def simplify_edges(edges, start, end):
     nodes = set(x[0] for x in edges) | set(x[1] for x in edges)
-    edges = [(s, t, 1) for (s, t) in edges]
-
-    new_edges = edges
+    new_edges = [(s, t, 1) for (s, t) in edges]
 
     inputs = {}
     outputs = {}
     weights = {}
-    nodes = (set(x[0] for x in new_edges) | set(x[1] for x in new_edges)) - {start, end}
+    nodes = set(x[0] for x in new_edges) | set(
+        x[1] for x in new_edges
+    )  # - {start, end}
     for source, target, weight in new_edges:
         if target not in inputs:
             inputs[target] = set()
@@ -168,11 +169,15 @@ def simplify_edges(edges, start, end):
         outputs[source].add(target)
         weights[source, target] = weight
 
+    # Reduce all runs of points to single edge
     while True:
         for node in nodes:
-            assert node not in (start, end)
-            if len(outputs[node]) != 2 or len(inputs[node]) != 2:
+            if len(outputs[node]) != len(inputs[node]):
                 continue
+            assert len(outputs[node]) != 0
+            if len(outputs[node]) != 2:
+                continue
+
             for child in outputs[node]:
                 for parent in inputs[node]:
                     if child != parent:
@@ -220,29 +225,41 @@ def path_length(path, weights):
 
 
 def find_longest_path_edges(edges, start, end):
-    edges = simplify_edges(edges, start, end)
-    initial_visited = frozenset([start])
+    raw_edges = simplify_edges(edges, start, end)
+    raw_nodes = set()
+    for a, b, _ in raw_edges:
+        raw_nodes.add(a)
+        raw_nodes.add(b)
+    node_map = {x: 1 << i for (i, x) in enumerate(sorted(raw_nodes))}
+    edges = []
+    for a, b, w in raw_edges:
+        edges.append((node_map[a], node_map[b], w))
+    start = node_map[start]
+    end = node_map[end]
+
+    initial_visited = start
     queue = [(0, initial_visited, start)]
     max_length = 0
-    source_to_targets = {}
-    weights = {}
+    source_to_targets = {1 << i: [] for (i, _) in enumerate(raw_nodes)}
     for source, target, weight in edges:
-        if source not in source_to_targets:
-            source_to_targets[source] = []
-        source_to_targets[source].append(target)
-        weights[source, target] = weight
+        source_to_targets[source].append((target, weight))
+        if target == end:
+            final_weight = weight
+
+    adjacent_to_end = source_to_targets[end][0][0]
+
     while queue:
-        negative_length, visited, node = queue.pop()
-        if node == end:
-            max_length = max(max_length, -negative_length)
+        path_length, visited, node = queue.pop()
+        if node == adjacent_to_end:
+            max_length = max(max_length, path_length)
             continue
-        for next_node in source_to_targets[node]:
-            if next_node in visited:
+        for next_node, weight in source_to_targets[node]:
+            if next_node & visited:
                 continue
-            next_visited = visited | {next_node}
-            next_negative_length = negative_length - weights[node, next_node]
-            queue.append((next_negative_length, next_visited, next_node))
-    return max_length
+            next_visited = visited | next_node
+            next_path_length = path_length + weight
+            queue.append((next_path_length, next_visited, next_node))
+    return max_length + final_weight
 
 
 def part_2(text):
