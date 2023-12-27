@@ -57,49 +57,18 @@ slippery_deltas = {
 }
 
 
-def find_longest_path(board, deltas):
-    start, end = find_ends(board)
-    height = len(board)
-    width = len(board[0])
-    initial_path = frozenset([start])
-    queue = [(-len(initial_path), *start, initial_path)]
-    seen = set()
-    while queue:
-        negative_count, i, j, state = heappop(queue)
-        if state in seen:
-            continue
-        seen.add(state)
-        if (i, j) == end:
-            continue
-        for di, dj in deltas[board[i][j]]:
-            next_i = i + di
-            next_j = j + dj
-            if (
-                0 <= next_i < height
-                and 0 <= next_j < width
-                and board[next_i][next_j] != '#'
-            ):
-                next_state = state | {(next_i, next_j)}
-                heappush(queue, (-len(next_state), next_i, next_j, next_state))
-    return max((x for x in seen if end in x), key=len)
-
-
-def part_1(text, with_graph=True):
+def part_1(text):
     """
     >>> part_1(EXAMPLE_TEXT)
     94
-    >>> part_1(EXAMPLE_TEXT, with_graph=True)
+    >>> part_1(EXAMPLE_TEXT)
     94
 
     input => 2306
     """
     board = parse(text)
-    if with_graph:
-        edges, start, end = board_to_graph(board, slippery_deltas)
-        return find_longest_path_edges(edges, start, end)
-    else:
-        path = find_longest_path(board, slippery_deltas)
-        return len(path) - 1
+    edges, start, end = board_to_graph(board, slippery_deltas)
+    return find_longest_path_edges(edges, start, end)
 
 
 boring_deltas = {
@@ -240,13 +209,13 @@ def find_longest_path_edges(edges, start, end):
     source_to_targets = {v: [] for (i, v) in enumerate(node_map.values())}
     for source, target, weight in edges:
         source_to_targets[source].append((target, weight))
-        if target == end:
-            final_weight = weight
 
-    initial_visited = start
-    queue = [(0, initial_visited, start)]
+    [(adjacent_to_start, start_cost)] = source_to_targets[start]
+    [(adjacent_to_end, end_cost)] = source_to_targets[end]
+
+    initial_visited = start | adjacent_to_start
+    queue = [(start_cost, initial_visited, adjacent_to_start)]
     max_length = 0
-    adjacent_to_end = source_to_targets[end][0][0]
 
     while queue:
         path_length, visited, node = queue.pop()
@@ -258,7 +227,7 @@ def find_longest_path_edges(edges, start, end):
                     next_visited = visited | next_node
                     next_path_length = path_length + weight
                     queue.append((next_path_length, next_visited, next_node))
-    return max_length + final_weight
+    return max_length + end_cost
 
 
 def part_2(text):
