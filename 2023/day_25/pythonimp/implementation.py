@@ -68,30 +68,32 @@ def karger_contract(
     while remaining_nodes > final_node_count:
         i, j = random_pick(remaining_edges, W, adjacency)
 
+        assert i < j
+
         # All the edges associates with i are moved to
         # point to new node, now at i
         nodes[i] = nodes[i] | nodes[j]
 
         # Add all the edges associates with j
-        for n in range(n_nodes):
-            if n != i:
-                adjacency[n * n_nodes + i] += adjacency[n * n_nodes + j]
-                adjacency[i * n_nodes + n] += adjacency[j * n_nodes + n]
-                if n > i:
-                    W[i] += adjacency[j * n_nodes + n]
-                else:
-                    W[n] += adjacency[n * n_nodes + j]
+        for n in range(i):
+            adjacency[n * n_nodes + i] += adjacency[n * n_nodes + j]
+            W[n] += adjacency[n * n_nodes + j]
+        for n in range(i + 1, j):
+            adjacency[i * n_nodes + n] += adjacency[n * n_nodes + j]
+            W[i] += adjacency[n * n_nodes + j]
+        for n in range(j, n_nodes):
+            adjacency[i * n_nodes + n] += adjacency[j * n_nodes + n]
+            W[i] += adjacency[j * n_nodes + n]
 
         # Delete edges associated with j
         nodes[j] = None
         remaining_nodes -= 1
         remaining_edges -= adjacency[i * n_nodes + j]
-        for n in range(n_nodes):
-            if n > j:
-                W[j] -= adjacency[j * n_nodes + n]
-            else:
-                W[n] -= adjacency[n * n_nodes + j]
+        for n in range(j):
+            W[n] -= adjacency[n * n_nodes + j]
             adjacency[n * n_nodes + j] = 0
+        for n in range(j, n_nodes):
+            W[j] -= adjacency[j * n_nodes + n]
             adjacency[j * n_nodes + n] = 0
 
     valid_indices = [i for i in range(n_nodes) if nodes[i] is not None]
@@ -117,6 +119,7 @@ def build_karger_args(edges):
     remaining_nodes = n_nodes = len(nodes)
     node_map = {k: i for (i, k) in enumerate(nodes)}
 
+    # We only use (and fill in) the upper diagonal
     adjacency = [0] * (n_nodes**2)
     W = [0] * n_nodes
     remaining_edges = 0
@@ -124,13 +127,11 @@ def build_karger_args(edges):
         i = node_map[wrap(node_a)]
         j = node_map[wrap(node_b)]
         assert i != j
+        if i > j:
+            i, j = j, i
         adjacency[i * n_nodes + j] += 1
-        adjacency[j * n_nodes + i] += 1
         remaining_edges += 1
-        if j > i:
-            W[i] += 1
-        else:
-            W[j] += 1
+        W[i] += 1
 
     return remaining_nodes, remaining_edges, W, nodes, adjacency
 
@@ -154,7 +155,7 @@ def build_edges_from_adjacency(adjacency, nodes):
         for j, node_b in enumerate(nodes):
             if j > i:
                 count = adjacency[i * n_nodes + j]
-                assert count == adjacency[j * n_nodes + i]
+                # assert count == adjacency[j * n_nodes + i]
                 if count:
                     if node_a != node_b:
                         e = frozenset([node_a, node_b])
@@ -230,7 +231,6 @@ def count_diconnected(edges):
         for cuts in find_min_cuts(edges):
             if cuts in tried:
                 continue
-            # print("trying", cuts)
             n = traverse(node_set, outputs, start, cuts=cuts)
             if n < len(nodes):
                 return n, len(nodes) - n
