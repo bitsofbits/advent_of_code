@@ -1,4 +1,5 @@
 import random
+from collections import defaultdict
 from itertools import permutations
 from math import ceil
 
@@ -50,6 +51,73 @@ def random_pick(remaining_edges, W, adjacency):
         t -= adjacency[i * n_nodes + j]
 
     return i, j
+
+
+def make_set(F, x):
+    # root, sub-root, size
+    F[x] = (x, 1)
+
+
+def find_set(F, x):
+    root, size = F[x]
+    if root == x:
+        return x
+    else:
+        root = find_set(F, root)
+        F[x] = (root, size)
+        return root
+
+
+def merge_sets(F, x, y):
+    _, x_size = F[x]
+    _, y_size = F[y]
+    x = find_set(F, x)
+    y = find_set(F, y)
+    if x == y:
+        return
+    if x_size < y_size:
+        x, y = y, x
+        x_size, y_size = y_size, x_size
+
+    F[y] = (x, y_size)
+    F[x] = (x, x_size + y_size)
+
+
+def build_kruskal_args(edges):
+    nodes = find_nodes(edges)
+    n_nodes = len(nodes)
+    forest = {}
+    for node in nodes:
+        make_set(forest, node)
+    return forest, n_nodes
+
+
+def extract_kruskal_sets(forest):
+    sets = defaultdict(set)
+    for node in forest:
+        sets[find_set(forest, node)].add(node)
+    return list(sets.values())
+
+
+def kruskal(edges, final_node_count=2):
+    # Karger contraction using Kruskal's algorithm
+    forest = {}
+    nodes = find_nodes(edges)
+    n_nodes = len(nodes)
+    forest = {}
+    for node in nodes:
+        make_set(forest, node)
+    edges = list(edges)
+    random.shuffle(edges)
+
+    for i, (u, v) in enumerate(edges):
+        if find_set(forest, u) != find_set(forest, v):
+            n_nodes -= 1
+            if final_node_count < 2:
+                break
+            merge_sets(forest, find_set(forest, u), find_set(forest, v))
+
+    return forest
 
 
 def karger_contract(
@@ -165,25 +233,42 @@ def build_edges_from_adjacency(adjacency, nodes):
     return edges
 
 
-def karger_stein_contract(remaining_nodes, remaining_edges, W, nodes, adjacency):
-    if remaining_nodes <= 6:
-        return karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency)
-    t = ceil(1 + remaining_nodes / 2**0.5)
-    G1 = karger_contract(
-        remaining_nodes, remaining_edges, W.copy(), nodes.copy(), adjacency.copy(), t
-    )
-    G2 = karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency, t)
-    return min(
-        karger_stein_contract(*G1),
-        karger_stein_contract(*G2),
-        key=lambda x: x[1],
-    )
+# def karger_stein_contract(remaining_nodes, remaining_edges, W, nodes, adjacency):
+#     if remaining_nodes <= 6:
+#         return karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency)
+#     t = ceil(1 + remaining_nodes / 2**0.5)
+#     G1 = karger_contract(
+#         remaining_nodes, remaining_edges, W.copy(), nodes.copy(), adjacency.copy(), t
+#     )
+#     G2 = karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency, t)
+#     return min(
+#         karger_stein_contract(*G1),
+#         karger_stein_contract(*G2),
+#         key=lambda x: x[1],
+#     )
+
+
+# def count_forest_edges(args):
+#     forest, n_nodes, edges = args
+#     return len(edges)
+
+
+# # This isn't working with kruskal contraction -- probably because I'm not counting the number of
+# # edges incorectly.
+# def karger_stein_contract(forest, n_nodes, edges):
+#     if n_nodes <= 6:
+#         return kruskal(forest, n_nodes, edges)
+#     t = ceil(1 + n_nodes / 2**0.5)
+#     G1 = kruskal(forest.copy(), n_nodes, edges.copy(), final_node_count=t)
+#     G2 = kruskal(forest.copy(), n_nodes, edges.copy(), final_node_count=t)
+#     return min(
+#         karger_stein_contract(*G1), karger_stein_contract(*G2), key=count_forest_edges
+#     )
 
 
 def find_min_cuts(edges, n=3):
-    karger_args = build_karger_args(edges)
-    *_, nodes, adjacency = karger_stein_contract(*karger_args)
-    [(a_nodes, b_nodes)] = build_edges_from_adjacency(adjacency, nodes)
+    forest = kruskal(edges)
+    (a_nodes, b_nodes) = extract_kruskal_sets(forest)
 
     choices = (frozenset((a, b)) for a in a_nodes for b in b_nodes)
     choices = (x for x in choices if x in edges)
@@ -231,6 +316,7 @@ def count_diconnected(edges):
         for cuts in find_min_cuts(edges):
             if cuts in tried:
                 continue
+            # print("trying", cuts)
             n = traverse(node_set, outputs, start, cuts=cuts)
             if n < len(nodes):
                 return n, len(nodes) - n
