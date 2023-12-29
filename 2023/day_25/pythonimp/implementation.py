@@ -1,5 +1,6 @@
 import random
 from itertools import permutations
+from math import ceil
 
 
 def parse(text):
@@ -64,9 +65,6 @@ def karger_contract(
 
     n_nodes = len(nodes)
 
-    for i in range(n_nodes):
-        assert W[i] == sum(adjacency[i * n_nodes + i : (i + 1) * n_nodes])
-
     while remaining_nodes > final_node_count:
         i, j = random_pick(remaining_edges, W, adjacency)
 
@@ -96,8 +94,13 @@ def karger_contract(
             adjacency[n * n_nodes + j] = 0
             adjacency[j * n_nodes + n] = 0
 
-        for i in range(n_nodes):
-            assert W[i] == sum(adjacency[i * n_nodes + i : (i + 1) * n_nodes])
+    valid_indices = [i for i in range(n_nodes) if nodes[i] is not None]
+
+    W = [W[i] for i in valid_indices]
+    nodes = [nodes[i] for i in valid_indices]
+    adjacency = [
+        adjacency[i * n_nodes + j] for i in valid_indices for j in valid_indices
+    ]
 
     return remaining_nodes, remaining_edges, W, nodes, adjacency
 
@@ -128,8 +131,6 @@ def build_karger_args(edges):
             W[i] += 1
         else:
             W[j] += 1
-
-    assert sum(W) == remaining_edges
 
     return remaining_nodes, remaining_edges, W, nodes, adjacency
 
@@ -164,10 +165,9 @@ def build_edges_from_adjacency(adjacency, nodes):
 
 
 def karger_stein_contract(remaining_nodes, remaining_edges, W, nodes, adjacency):
-    if remaining_nodes < 6:
+    if remaining_nodes <= 6:
         return karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency)
-    t = 1 + remaining_nodes / 2**0.5
-    # Copy nodes / adjacency on one path so we don't mutate shared objects
+    t = ceil(1 + remaining_nodes / 2**0.5)
     G1 = karger_contract(
         remaining_nodes, remaining_edges, W.copy(), nodes.copy(), adjacency.copy(), t
     )
@@ -186,7 +186,8 @@ def find_min_cuts(edges, n=3):
 
     choices = (frozenset((a, b)) for a in a_nodes for b in b_nodes)
     choices = (x for x in choices if x in edges)
-    return permutations(choices, n)
+    for x in permutations(choices, n):
+        yield frozenset(x)
 
 
 def find_nodes(edges):
@@ -229,6 +230,7 @@ def count_diconnected(edges):
         for cuts in find_min_cuts(edges):
             if cuts in tried:
                 continue
+            # print("trying", cuts)
             n = traverse(node_set, outputs, start, cuts=cuts)
             if n < len(nodes):
                 return n, len(nodes) - n
