@@ -61,7 +61,7 @@ def karger_contract(
     final_node_count=2,
 ):
     # Karger: https://en.wikipedia.org/wiki/Karger%27s_algorithm
-    # Could also use Stoer–Wagner
+    # Could also use Stoer–Wagner -- faster, but maybe harder to implement
 
     n_nodes = len(nodes)
 

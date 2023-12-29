@@ -239,6 +239,8 @@ def find_longest_path_edges(edges, start, end, max_queue_size=32):
     state = build_initial_state(edges, start, end)
     queue, *other_state = traverse_warmup_state(state, max_queue_size=max_queue_size)
     args = [(deque([x]),) + tuple(other_state) for x in queue]
+    if len(args) == 0:
+        return other_state[-2]
     with Pool() as p:
         return max(p.imap_unordered(traverse_from_state, args))
 

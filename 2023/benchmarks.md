@@ -21,6 +21,6 @@ Day, runtime(s)
 20, 0.25
 21, 0.14
 22, 0.08
-23, 13.02
+23, 0.90
 24, 0.04
-25, ~500s (non-deterministic)
+25, ~90s (non-deterministic)
