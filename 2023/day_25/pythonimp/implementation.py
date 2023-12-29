@@ -1,7 +1,4 @@
 import random
-from collections import defaultdict
-from copy import deepcopy
-from functools import cache
 from itertools import permutations
 
 
@@ -35,134 +32,106 @@ def make_outputs(edges):
     return outputs
 
 
-def karger_contract(nodes_to_edges, edges, final_vertext_count=2):
+def random_pick(remaining_edges, W, adjacency):
+    # See: https://people.engr.tamu.edu/j-chen3/courses/658/2016/notes/s1.pdf
+    n_nodes = len(W)
+    t = random.randrange(remaining_edges) + 1
+    i = 0
+    w = W[0]
+    while t > w:
+        i += 1
+        w += W[i]
+    w -= W[i]
+    t = t - w
+    j = i
+    while t > 0:
+        j += 1
+        t -= adjacency[i * n_nodes + j]
+
+    return i, j
+
+
+def karger_contract(
+    remaining_nodes,
+    remaining_edges,
+    W,
+    nodes,
+    adjacency,
+    final_node_count=2,
+):
     # Karger: https://en.wikipedia.org/wiki/Karger%27s_algorithm
     # Could also use Stoer–Wagner
 
-    # TODO: use adjacency matric.
-    # Which I think means matrix (or list of lists) of (i, j) counts to
-    # indicate nodes and list of nodes that map to the column
-    # adding a new node is just replacing an existing one
-    # and updating the node map.
-
-    nodes_to_edges = deepcopy(nodes_to_edges)
-    edges = edges.copy()
-
-    while len(nodes_to_edges) > final_vertext_count:
-        [target_edge] = random.choices(tuple(edges.keys()), tuple(edges.values()))
-        node_1, node_2 = target_edge
-        new_node = node_1 | node_2
-        assert new_node not in nodes_to_edges
-        edges_to_add = defaultdict(int)
-        edges_to_remove = set()
-
-        for edge_node in target_edge:
-            assert edge_node in nodes_to_edges
-            for obsolete_edge in nodes_to_edges[edge_node]:
-                node_a, node_b = obsolete_edge
-                if obsolete_edge == target_edge:
-                    edges_to_remove.add(obsolete_edge)
-                elif node_a in target_edge:
-                    assert node_b not in target_edge
-                    new_edge = frozenset([node_b, new_node])
-                    edges_to_add[new_edge] += edges[obsolete_edge]
-                    edges_to_remove.add(obsolete_edge)
-                elif node_b in target_edge:
-                    assert node_a not in target_edge
-                    new_edge = frozenset([node_a, new_node])
-                    edges_to_add[new_edge] += edges[obsolete_edge]
-                    edges_to_remove.add(obsolete_edge)
-                else:
-                    raise ValueError(obsolete_edge)
-
-        for e, n in edges_to_add.items():
-            assert e not in edges
-            edges[e] = n
-            for nd in e:
-                if nd in nodes_to_edges:
-                    nodes_to_edges[nd].add(e)
-                else:
-                    nodes_to_edges[nd] = {e}
-
-        for e in edges_to_remove:
-            del edges[e]
-            for nd in e:
-                nodes_to_edges[nd].remove(e)
-
-        nodes_to_remove = [k for (k, v) in nodes_to_edges.items() if not v]
-        for k in nodes_to_remove:
-            nodes_to_edges.pop(k)
-
-    return nodes_to_edges, edges
-
-
-def karger_contract_2(edges, final_node_count=2):
-    # Karger: https://en.wikipedia.org/wiki/Karger%27s_algorithm
-    # Could also use Stoer–Wagner
-
-    # TODO: use adjacency matric.
-    # Which I think means matrix (or list of lists) of (i, j) counts to
-    # indicate nodes and list of nodes that map to the column
-    # adding a new node is just replacing an existing one
-    # and updating the node map.
-    nodes = set()
-
-    for i, (node_a, node_b) in enumerate(edges):
-        nodes.add(node_a)
-        nodes.add(node_b)
-    nodes = sorted(nodes)
     n_nodes = len(nodes)
-    node_map = {k: i for (i, k) in enumerate(nodes)}
 
-    adjacency = [0] * (n_nodes**2)
-    for (node_a, node_b), count in edges.items():
-        i = node_map[node_a]
-        j = node_map[node_b]
-        assert i != j
-        adjacency[i * n_nodes + j] += count
-        adjacency[j * n_nodes + i] += count
+    for i in range(n_nodes):
+        assert W[i] == sum(adjacency[i * n_nodes + i : (i + 1) * n_nodes])
 
-    indices = list(range(n_nodes**2))
-
-    remaining_nodes = n_nodes
     while remaining_nodes > final_node_count:
-        [edge_index] = random.choices(indices, adjacency)
-        i = edge_index // n_nodes
-        j = edge_index % n_nodes
-
-        nodes[i] = nodes[i] | nodes[j]
-        nodes[j] = None
-        remaining_nodes -= 1
+        i, j = random_pick(remaining_edges, W, adjacency)
 
         # All the edges associates with i are moved to
-        # point to new node, now at i  -> which means do nothing
+        # point to new node, now at i
+        nodes[i] = nodes[i] | nodes[j]
 
         # Add all the edges associates with j
         for n in range(n_nodes):
             if n != i:
                 adjacency[n * n_nodes + i] += adjacency[n * n_nodes + j]
                 adjacency[i * n_nodes + n] += adjacency[j * n_nodes + n]
+                if n > i:
+                    W[i] += adjacency[j * n_nodes + n]
+                else:
+                    W[n] += adjacency[n * n_nodes + j]
 
         # Delete edges associated with j
+        nodes[j] = None
+        remaining_nodes -= 1
+        remaining_edges -= adjacency[i * n_nodes + j]
         for n in range(n_nodes):
+            if n > j:
+                W[j] -= adjacency[j * n_nodes + n]
+            else:
+                W[n] -= adjacency[n * n_nodes + j]
             adjacency[n * n_nodes + j] = 0
             adjacency[j * n_nodes + n] = 0
 
-    # Rebuild edges and nodes_to_edges
-    edges = {}
-    for i, node_a in enumerate(nodes):
-        for j, node_b in enumerate(nodes):
-            if j > i:
-                count = adjacency[i * n_nodes + j]
-                if count:
-                    if node_a != node_b:
-                        e = frozenset([node_a, node_b])
-                        assert len(e) == 2
-                        edges[e] = count
-                    else:
-                        print("Whoa!")
+        for i in range(n_nodes):
+            assert W[i] == sum(adjacency[i * n_nodes + i : (i + 1) * n_nodes])
 
-    return edges
+    return remaining_nodes, remaining_edges, W, nodes, adjacency
+
+
+def build_karger_args(edges):
+    def wrap(node):
+        return frozenset({node})
+
+    nodes = set()
+    for i, (node_a, node_b) in enumerate(edges):
+        nodes.add(wrap(node_a))
+        nodes.add(wrap(node_b))
+    nodes = sorted(nodes)
+    remaining_nodes = n_nodes = len(nodes)
+    node_map = {k: i for (i, k) in enumerate(nodes)}
+
+    adjacency = [0] * (n_nodes**2)
+    W = [0] * n_nodes
+    remaining_edges = 0
+    for node_a, node_b in edges:
+        i = node_map[wrap(node_a)]
+        j = node_map[wrap(node_b)]
+        assert i != j
+        adjacency[i * n_nodes + j] += 1
+        adjacency[j * n_nodes + i] += 1
+        remaining_edges += 1
+        if j > i:
+            W[i] += 1
+        else:
+            W[j] += 1
+
+    assert sum(W) == remaining_edges
+
+    return remaining_nodes, remaining_edges, W, nodes, adjacency
 
 
 def count_edges(edges):
@@ -177,42 +146,43 @@ def count_nodes(edges):
     return len(nodes)
 
 
-def karger_stein_contract(edges):
-    n_nodes = count_nodes(edges)
-    if n_nodes < 6:
-        return karger_contract_2(edges)
-    t = 1 + n_nodes / 2**0.5
-    G1 = karger_contract_2(edges, t)
-    G2 = karger_contract_2(edges, t)
+def build_edges_from_adjacency(adjacency, nodes):
+    n_nodes = len(nodes)
+    edges = {}
+    for i, node_a in enumerate(nodes):
+        for j, node_b in enumerate(nodes):
+            if j > i:
+                count = adjacency[i * n_nodes + j]
+                assert count == adjacency[j * n_nodes + i]
+                if count:
+                    if node_a != node_b:
+                        e = frozenset([node_a, node_b])
+                        assert len(e) == 2
+                        edges[e] = count
+                    assert None not in (node_a, node_b)
+    return edges
+
+
+def karger_stein_contract(remaining_nodes, remaining_edges, W, nodes, adjacency):
+    if remaining_nodes < 6:
+        return karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency)
+    t = 1 + remaining_nodes / 2**0.5
+    # Copy nodes / adjacency on one path so we don't mutate shared objects
+    G1 = karger_contract(
+        remaining_nodes, remaining_edges, W.copy(), nodes.copy(), adjacency.copy(), t
+    )
+    G2 = karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency, t)
     return min(
-        karger_stein_contract(G1),
-        karger_stein_contract(G2),
-        key=lambda x: count_edges(x),
+        karger_stein_contract(*G1),
+        karger_stein_contract(*G2),
+        key=lambda x: x[1],
     )
 
 
-@cache
-def mangle_edges(edges):
-    return {frozenset([frozenset([a]), frozenset([b])]): 1 for (a, b) in edges}
-
-
-@cache
-def make_nodes_to_edges(edges):
-    mangled_edges = {frozenset([frozenset([a]), frozenset([b])]): 1 for (a, b) in edges}
-
-    nodes_to_edges = defaultdict(set)
-    for edge in mangled_edges:
-        a, b = edge
-        nodes_to_edges[a].add(edge)
-        nodes_to_edges[b].add(edge)
-    return dict(nodes_to_edges)
-
-
-# TODO: Convert to better data structures here and then pass in so we don't have to rebuild them
 def find_min_cuts(edges, n=3):
-    mangled_edges = mangle_edges(edges)
-
-    [(a_nodes, b_nodes)] = karger_stein_contract(mangled_edges)
+    karger_args = build_karger_args(edges)
+    *_, nodes, adjacency = karger_stein_contract(*karger_args)
+    [(a_nodes, b_nodes)] = build_edges_from_adjacency(adjacency, nodes)
 
     choices = (frozenset((a, b)) for a in a_nodes for b in b_nodes)
     choices = (x for x in choices if x in edges)
