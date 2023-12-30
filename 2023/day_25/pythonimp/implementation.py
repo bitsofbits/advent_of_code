@@ -34,25 +34,6 @@ def make_outputs(edges):
     return outputs
 
 
-def random_pick(remaining_edges, W, adjacency):
-    # See: https://people.engr.tamu.edu/j-chen3/courses/658/2016/notes/s1.pdf
-    n_nodes = len(W)
-    t = random.randrange(remaining_edges) + 1
-    i = 0
-    w = W[0]
-    while t > w:
-        i += 1
-        w += W[i]
-    w -= W[i]
-    t = t - w
-    j = i
-    while t > 0:
-        j += 1
-        t -= adjacency[i * n_nodes + j]
-
-    return i, j
-
-
 def make_set(F, x):
     # root, sub-root, size
     F[x] = (x, 1)
@@ -83,15 +64,6 @@ def merge_sets(F, x, y):
     F[x] = (x, x_size + y_size)
 
 
-def build_kruskal_args(edges):
-    nodes = find_nodes(edges)
-    n_nodes = len(nodes)
-    forest = {}
-    for node in nodes:
-        make_set(forest, node)
-    return forest, n_nodes
-
-
 def extract_kruskal_sets(forest):
     sets = defaultdict(set)
     for node in forest:
@@ -99,153 +71,40 @@ def extract_kruskal_sets(forest):
     return list(sets.values())
 
 
-def kruskal(edges, final_node_count=2):
-    # Karger contraction using Kruskal's algorithm
+# -        remaining_edges -= adjacency[i * n_nodes + j]
+
+
+def build_kruskal_args(edges):
     forest = {}
     nodes = find_nodes(edges)
-    n_nodes = len(nodes)
+    remaining_nodes = len(nodes)
+    remaining_edges = len(edges)
     forest = {}
     for node in nodes:
         make_set(forest, node)
-    edges = list(edges)
+    return list(edges), forest, remaining_nodes, remaining_edges
+
+
+def kruskal(edges, forest, remaining_nodes, remaining_edges, final_node_count=2):
+    # Karger contraction using Kruskal's algorithm
+
     random.shuffle(edges)
 
     for i, (u, v) in enumerate(edges):
-        if find_set(forest, u) != find_set(forest, v):
-            n_nodes -= 1
-            if final_node_count < 2:
+        u_root = find_set(forest, u)
+        v_root = find_set(forest, v)
+        if u_root != v_root:
+            remaining_nodes -= 1
+            if remaining_nodes < final_node_count:
+                i -= 1
+                remaining_nodes += 1
                 break
-            merge_sets(forest, find_set(forest, u), find_set(forest, v))
+            merge_sets(forest, u_root, v_root)
+        else:
+            remaining_edges -= 1
+        # print(remaining_edges)
 
-    return forest
-
-
-def karger_contract(
-    remaining_nodes,
-    remaining_edges,
-    W,
-    nodes,
-    adjacency,
-    final_node_count=2,
-):
-    # Karger: https://en.wikipedia.org/wiki/Karger%27s_algorithm
-    # Could also use Stoer–Wagner -- faster, but maybe harder to implement
-
-    n_nodes = len(nodes)
-
-    while remaining_nodes > final_node_count:
-        i, j = random_pick(remaining_edges, W, adjacency)
-
-        assert i < j
-
-        # All the edges associates with i are moved to
-        # point to new node, now at i
-        nodes[i] = nodes[i] | nodes[j]
-
-        # Add all the edges associates with j
-        for n in range(i):
-            adjacency[n * n_nodes + i] += adjacency[n * n_nodes + j]
-            W[n] += adjacency[n * n_nodes + j]
-        for n in range(i + 1, j):
-            adjacency[i * n_nodes + n] += adjacency[n * n_nodes + j]
-            W[i] += adjacency[n * n_nodes + j]
-        for n in range(j, n_nodes):
-            adjacency[i * n_nodes + n] += adjacency[j * n_nodes + n]
-            W[i] += adjacency[j * n_nodes + n]
-
-        # Delete edges associated with j
-        nodes[j] = None
-        remaining_nodes -= 1
-        remaining_edges -= adjacency[i * n_nodes + j]
-        for n in range(j):
-            W[n] -= adjacency[n * n_nodes + j]
-            adjacency[n * n_nodes + j] = 0
-        for n in range(j, n_nodes):
-            W[j] -= adjacency[j * n_nodes + n]
-            adjacency[j * n_nodes + n] = 0
-
-    valid_indices = [i for i in range(n_nodes) if nodes[i] is not None]
-
-    W = [W[i] for i in valid_indices]
-    nodes = [nodes[i] for i in valid_indices]
-    adjacency = [
-        adjacency[i * n_nodes + j] for i in valid_indices for j in valid_indices
-    ]
-
-    return remaining_nodes, remaining_edges, W, nodes, adjacency
-
-
-def build_karger_args(edges):
-    def wrap(node):
-        return frozenset({node})
-
-    nodes = set()
-    for i, (node_a, node_b) in enumerate(edges):
-        nodes.add(wrap(node_a))
-        nodes.add(wrap(node_b))
-    nodes = sorted(nodes)
-    remaining_nodes = n_nodes = len(nodes)
-    node_map = {k: i for (i, k) in enumerate(nodes)}
-
-    # We only use (and fill in) the upper diagonal
-    adjacency = [0] * (n_nodes**2)
-    W = [0] * n_nodes
-    remaining_edges = 0
-    for node_a, node_b in edges:
-        i = node_map[wrap(node_a)]
-        j = node_map[wrap(node_b)]
-        assert i != j
-        if i > j:
-            i, j = j, i
-        adjacency[i * n_nodes + j] += 1
-        remaining_edges += 1
-        W[i] += 1
-
-    return remaining_nodes, remaining_edges, W, nodes, adjacency
-
-
-def count_edges(edges):
-    return sum(edges.values())
-
-
-def count_nodes(edges):
-    nodes = set()
-    for i, (node_a, node_b) in enumerate(edges):
-        nodes.add(node_a)
-        nodes.add(node_b)
-    return len(nodes)
-
-
-def build_edges_from_adjacency(adjacency, nodes):
-    n_nodes = len(nodes)
-    edges = {}
-    for i, node_a in enumerate(nodes):
-        for j, node_b in enumerate(nodes):
-            if j > i:
-                count = adjacency[i * n_nodes + j]
-                # assert count == adjacency[j * n_nodes + i]
-                if count:
-                    if node_a != node_b:
-                        e = frozenset([node_a, node_b])
-                        assert len(e) == 2
-                        edges[e] = count
-                    assert None not in (node_a, node_b)
-    return edges
-
-
-# def karger_stein_contract(remaining_nodes, remaining_edges, W, nodes, adjacency):
-#     if remaining_nodes <= 6:
-#         return karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency)
-#     t = ceil(1 + remaining_nodes / 2**0.5)
-#     G1 = karger_contract(
-#         remaining_nodes, remaining_edges, W.copy(), nodes.copy(), adjacency.copy(), t
-#     )
-#     G2 = karger_contract(remaining_nodes, remaining_edges, W, nodes, adjacency, t)
-#     return min(
-#         karger_stein_contract(*G1),
-#         karger_stein_contract(*G2),
-#         key=lambda x: x[1],
-#     )
+    return edges[i:], forest, remaining_nodes, len(edges[i:])
 
 
 # def count_forest_edges(args):
@@ -253,23 +112,39 @@ def build_edges_from_adjacency(adjacency, nodes):
 #     return len(edges)
 
 
-# # This isn't working with kruskal contraction -- probably because I'm not counting the number of
-# # edges incorectly.
-# def karger_stein_contract(forest, n_nodes, edges):
-#     if n_nodes <= 6:
-#         return kruskal(forest, n_nodes, edges)
-#     t = ceil(1 + n_nodes / 2**0.5)
-#     G1 = kruskal(forest.copy(), n_nodes, edges.copy(), final_node_count=t)
-#     G2 = kruskal(forest.copy(), n_nodes, edges.copy(), final_node_count=t)
-#     return min(
-#         karger_stein_contract(*G1), karger_stein_contract(*G2), key=count_forest_edges
-#     )
+# This isn't working with kruskal contraction -- probably because I'm not counting the number of
+# edges incorectly.
+def karger_stein_contract(edges, forest, remaining_nodes, remaining_edges):
+    if remaining_nodes <= 6:
+        return kruskal(edges, forest, remaining_nodes, remaining_edges)
+    t = ceil(1 + remaining_nodes / 2**0.5)
+    # Don't need all this copying, only on one side
+    G1 = kruskal(
+        edges.copy(),
+        forest.copy(),
+        remaining_nodes,
+        remaining_edges,
+        final_node_count=t,
+    )
+    G2 = kruskal(
+        edges.copy(),
+        forest.copy(),
+        remaining_nodes,
+        remaining_edges,
+        final_node_count=t,
+    )
+    return min(
+        karger_stein_contract(*G1), karger_stein_contract(*G2), key=lambda x: x[3]
+    )
 
 
 def find_min_cuts(edges, n=3):
-    forest = kruskal(edges)
-    (a_nodes, b_nodes) = extract_kruskal_sets(forest)
+    args = build_kruskal_args(edges)
+    edges, forest, *_ = kruskal(*args)
+    # karger_stein_contract(*args)
 
+    (a_nodes, b_nodes) = extract_kruskal_sets(forest)
+    # choices = edges
     choices = (frozenset((a, b)) for a in a_nodes for b in b_nodes)
     choices = (x for x in choices if x in edges)
     for x in permutations(choices, n):
