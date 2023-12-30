@@ -1,5 +1,5 @@
 import random
-from collections import defaultdict
+from collections import defaultdict, deque
 from itertools import permutations
 from multiprocessing import Pool
 
@@ -64,16 +64,6 @@ def merge_sets(F, x, y):
     F[x] = (x, x_size + y_size)
 
 
-def extract_kruskal_sets(forest):
-    sets = defaultdict(set)
-    for node in forest:
-        sets[find_set(forest, node)].add(node)
-    return list(sets.values())
-
-
-# -        remaining_edges -= adjacency[i * n_nodes + j]
-
-
 def build_kruskal_args(edges):
     forest = {}
     nodes = find_nodes(edges)
@@ -104,36 +94,18 @@ def kruskal(edges, forest, remaining_nodes, final_node_count=2):
     return remaining_edges, forest, remaining_nodes
 
 
-# def count_forest_edges(args):
-#     forest, n_nodes, edges = args
-#     return len(edges)
-
-
-# # This isn't working with kruskal contraction -- probably because I'm not counting the number of
-# # edges incorectly.
-# def karger_stein_contract(edges, forest, remaining_nodes):
-#     if remaining_nodes <= 6:
-#         return kruskal(edges, forest, remaining_nodes)
-#     t = ceil(1 + remaining_nodes / 2**0.5)
-#     G1 = kruskal(edges.copy(), forest.copy(), remaining_nodes, t)
-#     G2 = kruskal(edges.copy(), forest.copy(), remaining_nodes, t)
-#     return min(
-#         karger_stein_contract(*G1), karger_stein_contract(*G2), key=lambda x: len(x[0])
-#     )
-
-
 def kurskal_wrapper(arg):
     edges, forest, remaining_nodes = arg
     return kruskal(edges.copy(), forest.copy(), remaining_nodes)
 
 
-def find_min_cuts(edges, repeats=32, n=3):
+def find_min_cuts(edges, repeats=64, n=3):
     edges, forest, remaining_nodes = build_kruskal_args(edges)
 
     args = [(edges, forest, remaining_nodes)] * repeats
     used = set()
+    counts = defaultdict(int)
     with Pool() as pool:
-        counts = defaultdict(int)
         while True:
             for remaining_edges, *_ in pool.imap_unordered(kurskal_wrapper, args):
                 for x in permutations(remaining_edges, n):
@@ -141,15 +113,6 @@ def find_min_cuts(edges, repeats=32, n=3):
             value = max(counts, key=lambda x: counts[x] * (x not in used))
             used.add(value)
             yield value
-
-    # # karger_stein_contract(*args)
-    # choices = edges
-    # # (a_nodes, b_nodes) = extract_kruskal_sets(forest)
-    # # choices = edges
-    # # choices = (frozenset((a, b)) for a in a_nodes for b in b_nodes)
-    # # choices = (x for x in choices if x in edges)
-    # for x in permutations(choices, n):
-    #     yield frozenset(x)
 
 
 def find_nodes(edges):
@@ -173,25 +136,27 @@ def count_diconnected(edges):
     outputs = make_outputs(edges)
     edges = tuple(edges)
 
-    def traverse(nodes, outputs, start, cuts=()):
-        queue = [(start, None)]
+    def traverse(nodes, outputs, start):
+        queue = [start]
         seen = set()
         while queue:
-            node, edge = queue.pop()
-            if node in seen:
-                continue
+            node = queue.pop()
             seen.add(node)
             for next_node in outputs[node]:
-                edge = frozenset((node, next_node))
-                if edge not in cuts:
-                    queue.append((next_node, edge))
+                if next_node not in seen:
+                    seen.add(node)
+                    edge = frozenset((node, next_node))
+                    if edge not in cuts:
+                        queue.append(next_node)
         return len(seen)
 
     tried = set()
     for cuts in find_min_cuts(edges):
+        cuts = frozenset(cuts)
         if cuts in tried:
             continue
-        n = traverse(node_set, outputs, start, cuts=cuts)
+        pruned_outputs = {k: v - cuts for (k, v) in outputs.items()}
+        n = traverse(node_set, pruned_outputs, start)
         if n < len(nodes):
             return n, len(nodes) - n
 
