@@ -1,8 +1,6 @@
 import random
-from collections import defaultdict
 from functools import cache
-from itertools import permutations
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
 
 def parse(text):
@@ -68,7 +66,7 @@ def build_kruskal_args(edges):
     return list(edges), forest, remaining_nodes
 
 
-def kruskal(edges, forest, remaining_nodes):
+def karger_contract(edges, forest, remaining_nodes, final_node_count=2):
     # Karger contraction using Kruskal's algorithm
 
     random.shuffle(edges)
@@ -79,7 +77,7 @@ def kruskal(edges, forest, remaining_nodes):
         u_root = find_set(forest, u)
         v_root = find_set(forest, v)
         if u_root != v_root:
-            if remaining_nodes <= 2:
+            if remaining_nodes <= final_node_count:
                 remaining_edges.append(edge)
             else:
                 merge_sets(forest, u_root, v_root)
@@ -88,23 +86,26 @@ def kruskal(edges, forest, remaining_nodes):
     return remaining_edges, forest, remaining_nodes
 
 
-def kurskal_wrapper(edges):
+def count_edges(arg):
+    remaining_edges, forest, remaining_nodes = arg
+    return len(remaining_edges)
+
+
+def contract_wrapper(edges):
     edges, forest, remaining_nodes = build_kruskal_args(edges)
-    remaining_edges, *_ = kruskal(edges.copy(), forest.copy(), remaining_nodes)
+    remaining_edges, *_ = karger_contract(edges.copy(), forest.copy(), remaining_nodes)
     return remaining_edges
 
 
-def find_min_cuts(edges, repeats=128, n=3):
-    used = set()
-    counts = defaultdict(int)
+def find_min_cuts(edges, tries_per_cpu=4, n=3):
+    n_parallel = tries_per_cpu * cpu_count()
     with Pool() as pool:
         while True:
-            for cut_edges in pool.imap_unordered(kurskal_wrapper, [edges] * repeats):
-                for x in permutations(cut_edges, n):
-                    counts[x] += 1
-            value = max(counts, key=lambda x: counts[x] * (x not in used))
-            used.add(value)
-            yield value
+            for cut_edges in pool.imap_unordered(
+                contract_wrapper, [edges] * n_parallel
+            ):
+                if len(cut_edges) == n:
+                    yield cut_edges
 
 
 def find_nodes(edges):
