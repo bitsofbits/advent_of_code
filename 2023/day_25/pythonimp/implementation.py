@@ -1,5 +1,6 @@
 import random
-from collections import defaultdict, deque
+from collections import defaultdict
+from functools import cache
 from itertools import permutations
 from multiprocessing import Pool
 
@@ -35,35 +36,28 @@ def make_outputs(edges):
 
 
 def make_set(F, x):
-    # root, sub-root, size
-    F[x] = (x, 1)
+    F[x] = x
 
 
 def find_set(F, x):
-    root, size = F[x]
-    if root == x:
+    root = F[x]
+    if x == root:
         return x
-    else:
-        root = find_set(F, root)
-        F[x] = (root, size)
-        return root
+    while (next_root := F[root]) != root:
+        root = next_root
+    F[x] = root
+    return root
 
 
 def merge_sets(F, x, y):
-    _, x_size = F[x]
-    _, y_size = F[y]
     x = find_set(F, x)
     y = find_set(F, y)
-    if x == y:
-        return
-    if x_size < y_size:
-        x, y = y, x
-        x_size, y_size = y_size, x_size
-
-    F[y] = (x, y_size)
-    F[x] = (x, x_size + y_size)
+    if x != y:
+        F[y] = x
+        F[x] = x
 
 
+@cache
 def build_kruskal_args(edges):
     forest = {}
     nodes = find_nodes(edges)
@@ -74,7 +68,7 @@ def build_kruskal_args(edges):
     return list(edges), forest, remaining_nodes
 
 
-def kruskal(edges, forest, remaining_nodes, final_node_count=2):
+def kruskal(edges, forest, remaining_nodes):
     # Karger contraction using Kruskal's algorithm
 
     random.shuffle(edges)
@@ -85,7 +79,7 @@ def kruskal(edges, forest, remaining_nodes, final_node_count=2):
         u_root = find_set(forest, u)
         v_root = find_set(forest, v)
         if u_root != v_root:
-            if remaining_nodes <= final_node_count:
+            if remaining_nodes <= 2:
                 remaining_edges.append(edge)
             else:
                 merge_sets(forest, u_root, v_root)
@@ -94,21 +88,19 @@ def kruskal(edges, forest, remaining_nodes, final_node_count=2):
     return remaining_edges, forest, remaining_nodes
 
 
-def kurskal_wrapper(arg):
-    edges, forest, remaining_nodes = arg
-    return kruskal(edges.copy(), forest.copy(), remaining_nodes)
-
-
-def find_min_cuts(edges, repeats=64, n=3):
+def kurskal_wrapper(edges):
     edges, forest, remaining_nodes = build_kruskal_args(edges)
+    remaining_edges, *_ = kruskal(edges.copy(), forest.copy(), remaining_nodes)
+    return remaining_edges
 
-    args = [(edges, forest, remaining_nodes)] * repeats
+
+def find_min_cuts(edges, repeats=128, n=3):
     used = set()
     counts = defaultdict(int)
     with Pool() as pool:
         while True:
-            for remaining_edges, *_ in pool.imap_unordered(kurskal_wrapper, args):
-                for x in permutations(remaining_edges, n):
+            for cut_edges in pool.imap_unordered(kurskal_wrapper, [edges] * repeats):
+                for x in permutations(cut_edges, n):
                     counts[x] += 1
             value = max(counts, key=lambda x: counts[x] * (x not in used))
             used.add(value)
