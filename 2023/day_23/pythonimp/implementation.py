@@ -57,8 +57,10 @@ slippery_deltas = {
     '.': [(0, 1), (1, 0), (0, -1), (-1, 0)],
 }
 
+DEFAULT_MAX_QUEUE_SIZE = 256
 
-def part_1(text, max_queue_size=32):
+
+def part_1(text, max_queue_size=DEFAULT_MAX_QUEUE_SIZE):
     """
     >>> part_1(EXAMPLE_TEXT, max_queue_size=2)
     94
@@ -125,9 +127,7 @@ def simplify_edges(edges, start, end):
     inputs = {}
     outputs = {}
     weights = {}
-    nodes = set(x[0] for x in new_edges) | set(
-        x[1] for x in new_edges
-    )  # - {start, end}
+    nodes = set(x[0] for x in new_edges) | set(x[1] for x in new_edges)
     for source, target, weight in new_edges:
         if target not in inputs:
             inputs[target] = set()
@@ -261,7 +261,7 @@ def traverse_warmup_state(state, max_queue_size):
     return queue, adjacent_to_end, max_length, source_to_targets
 
 
-def part_2(text, max_queue_size=32):
+def part_2(text, max_queue_size=DEFAULT_MAX_QUEUE_SIZE):
     """
     >>> part_2(EXAMPLE_TEXT, max_queue_size=1)
     154

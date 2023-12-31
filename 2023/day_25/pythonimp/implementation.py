@@ -1,5 +1,6 @@
 import random
 from functools import cache
+from itertools import count
 from multiprocessing import Pool, cpu_count
 
 
@@ -37,14 +38,26 @@ def make_set(F, x):
     F[x] = x
 
 
+@cache
+def make_tree_from_edges(edges):
+    tree = {}
+    for a, b in edges:
+        tree[a] = a
+        tree[b] = b
+    return tree
+
+
 def find_set(F, x):
-    root = F[x]
-    if x == root:
+    parent = F[x]
+    if x == parent:
         return x
-    while (next_root := F[root]) != root:
-        root = next_root
-    F[x] = root
-    return root
+    node = x
+    while parent != node:
+        F[node] = parent
+        node = parent
+        parent = F[node]
+    F[x] = parent
+    return node
 
 
 def merge_sets(F, x, y):
@@ -55,57 +68,42 @@ def merge_sets(F, x, y):
         F[x] = x
 
 
-@cache
-def build_kruskal_args(edges):
-    forest = {}
-    nodes = find_nodes(edges)
-    remaining_nodes = len(nodes)
-    forest = {}
-    for node in nodes:
-        make_set(forest, node)
-    return list(edges), forest, remaining_nodes
-
-
 def karger_contract(edges, forest, remaining_nodes, final_node_count=2):
     # Karger contraction using Kruskal's algorithm
 
     random.shuffle(edges)
     remaining_edges = []
 
-    for i, edge in enumerate(edges):
+    for edge in edges:
         (u, v) = edge
         u_root = find_set(forest, u)
         v_root = find_set(forest, v)
         if u_root != v_root:
-            if remaining_nodes <= final_node_count:
-                remaining_edges.append(edge)
-            else:
-                merge_sets(forest, u_root, v_root)
+            if remaining_nodes > final_node_count:
+                # Fast version of merge sets given that we have unequal roots
+                forest[v_root] = u_root
                 remaining_nodes -= 1
+            else:
+                remaining_edges.append(edge)
 
     return remaining_edges, forest, remaining_nodes
 
 
-def count_edges(arg):
-    remaining_edges, forest, remaining_nodes = arg
-    return len(remaining_edges)
-
-
 def contract_wrapper(edges):
-    edges, forest, remaining_nodes = build_kruskal_args(edges)
-    remaining_edges, *_ = karger_contract(edges.copy(), forest.copy(), remaining_nodes)
+    tree = make_tree_from_edges(edges)
+    remaining_edges, *_ = karger_contract(list(edges), tree.copy(), len(tree))
     return remaining_edges
 
 
-def find_min_cuts(edges, tries_per_cpu=4, n=3):
-    n_parallel = tries_per_cpu * cpu_count()
+def find_min_cuts(edges, n=3):
+    edges = tuple(edges)
     with Pool() as pool:
-        while True:
-            for cut_edges in pool.imap_unordered(
-                contract_wrapper, [edges] * n_parallel
-            ):
-                if len(cut_edges) == n:
-                    yield cut_edges
+        for cut_edges in pool.imap_unordered(
+            contract_wrapper, (edges for _ in count())
+        ):
+            if len(cut_edges) == n:
+                pool.terminate()
+                yield cut_edges
 
 
 def find_nodes(edges):
@@ -118,7 +116,7 @@ def find_nodes(edges):
 
 def destring_edges(edges):
     node_map = {x: i for i, x in enumerate(sorted(find_nodes(edges)))}
-    return tuple(frozenset([node_map[a], node_map[b]]) for (a, b) in edges)
+    return list(frozenset([node_map[a], node_map[b]]) for (a, b) in edges)
 
 
 def count_diconnected(edges):
@@ -127,7 +125,6 @@ def count_diconnected(edges):
     start, *_ = nodes
     node_set = frozenset(nodes)
     outputs = make_outputs(edges)
-    edges = tuple(edges)
 
     def traverse(nodes, outputs, start):
         queue = [start]
