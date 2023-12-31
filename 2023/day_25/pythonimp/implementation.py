@@ -1,7 +1,5 @@
 import random
-from functools import cache
-from itertools import count
-from multiprocessing import Pool, cpu_count
+from collections import deque
 
 
 def parse(text):
@@ -18,92 +16,117 @@ def parse(text):
         nodes.append(left)
         for right in right.strip().split():
             nodes.append(right)
-            edges.append(frozenset([left, right]))
+            edges.append(((left, right)))
     return edges
 
 
-def make_outputs(edges):
+def make_outputs(edges, cuts):
     outputs = {}
     for a, b in edges:
-        if a not in outputs:
-            outputs[a] = set()
-        outputs[a].add(b)
-        if b not in outputs:
-            outputs[b] = set()
-        outputs[b].add(a)
+        if (a, b) not in cuts:
+            if a not in outputs:
+                outputs[a] = set()
+            outputs[a].add(b)
+            if b not in outputs:
+                outputs[b] = set()
+            outputs[b].add(a)
     return outputs
 
 
-def make_set(F, x):
-    F[x] = x
+def make_set(forest, x):
+    forest[x] = x
 
 
-@cache
-def make_tree_from_edges(edges):
-    tree = {}
+def make_forest_from_edges(edges):
+    forest = {}
     for a, b in edges:
-        tree[a] = a
-        tree[b] = b
-    return tree
+        forest[a] = a
+        forest[b] = b
+    return forest
 
 
-def find_set(F, x):
-    parent = F[x]
-    if x == parent:
-        return x
-    node = x
+def find_set(forest, node):
+    parent = forest[node]
     while parent != node:
-        F[node] = parent
+        grandparent = forest[parent]
+        forest[node] = grandparent
         node = parent
-        parent = F[node]
-    F[x] = parent
+        parent = grandparent
     return node
 
 
-def merge_sets(F, x, y):
-    x = find_set(F, x)
-    y = find_set(F, y)
+def merge_sets(forest, x, y):
+    x = find_set(forest, x)
+    y = find_set(forest, y)
     if x != y:
-        F[y] = x
-        F[x] = x
+        forest[y] = x
+        forest[x] = x
 
 
 def karger_contract(edges, forest, remaining_nodes, final_node_count=2):
     # Karger contraction using Kruskal's algorithm
-
-    random.shuffle(edges)
+    #
+    # Edges and forest are modified. edges are assumed to be pre-shuffled.
     remaining_edges = []
-
     for edge in edges:
-        (u, v) = edge
+        u, v = edge
         u_root = find_set(forest, u)
         v_root = find_set(forest, v)
         if u_root != v_root:
             if remaining_nodes > final_node_count:
-                # Fast version of merge sets given that we have unequal roots
+                # Fast version of merge_sets given that we have unequal roots
                 forest[v_root] = u_root
                 remaining_nodes -= 1
             else:
                 remaining_edges.append(edge)
-
     return remaining_edges, forest, remaining_nodes
 
 
-def contract_wrapper(edges):
-    tree = make_tree_from_edges(edges)
-    remaining_edges, *_ = karger_contract(list(edges), tree.copy(), len(tree))
-    return remaining_edges
+def count_edges(graph):
+    return len(graph[0])
+
+
+def karger_stein_contract(edges, forest, remaining_nodes):
+    # N.B. Input edges and forest are modified. Also, input
+    # edges are assumed to be pre-shuffled.
+    #
+    # In the "real" Karger-Stein algorithm,
+    # `target = ceil(1 + remaining_nodes / sqrt(2)),
+    # but that never even finishes here, while this less aggressive
+    # target works fine. Possibly related to me "finishing off"
+    # iteration over nodes in kruskal?
+    target_nodes = remaining_nodes // 2
+    if target_nodes <= 6:
+        return karger_contract(edges, forest, remaining_nodes)
+    edges, forest, remaining_nodes = karger_contract(
+        edges, forest, remaining_nodes, target_nodes
+    )
+    # We only need to copy and reshuffle on one branch.
+    copy_of_edges = edges.copy()
+    random.shuffle(copy_of_edges)
+    graph_1 = karger_stein_contract(copy_of_edges, forest.copy(), remaining_nodes)
+    graph_2 = karger_stein_contract(edges, forest, remaining_nodes)
+    return min(graph_1, graph_2, key=count_edges)
+
+
+def contract(edges, forest, n_nodes):
+    # Convert edges to tuples, since they are faster and we aren't doing comparisons
+    shuffled_edges = edges.copy()
+    random.shuffle(shuffled_edges)
+    edges, forest, remaining_nodes = karger_stein_contract(
+        shuffled_edges, forest.copy(), n_nodes
+    )
+    return edges
 
 
 def find_min_cuts(edges, n=3):
-    edges = tuple(edges)
-    with Pool() as pool:
-        for cut_edges in pool.imap_unordered(
-            contract_wrapper, (edges for _ in count())
-        ):
-            if len(cut_edges) == n:
-                pool.terminate()
-                yield cut_edges
+    edges = edges.copy()
+    forest = make_forest_from_edges(edges)
+    n_nodes = len(forest)
+    while True:
+        cut_edges = contract(edges, forest, n_nodes)
+        if len(cut_edges) == n:
+            return cut_edges
 
 
 def find_nodes(edges):
@@ -116,39 +139,30 @@ def find_nodes(edges):
 
 def destring_edges(edges):
     node_map = {x: i for i, x in enumerate(sorted(find_nodes(edges)))}
-    return list(frozenset([node_map[a], node_map[b]]) for (a, b) in edges)
+    return list((node_map[a], node_map[b]) for (a, b) in edges)
+
+
+def traverse(outputs, start):
+    queue = deque([start])
+    seen = set()
+    while queue:
+        node = queue.pop()
+        seen.add(node)
+        for next_node in outputs[node]:
+            if next_node not in seen:
+                queue.appendleft(next_node)
+    return len(seen)
 
 
 def count_diconnected(edges):
     edges = destring_edges(edges)
     nodes = find_nodes(edges)
     start, *_ = nodes
-    node_set = frozenset(nodes)
-    outputs = make_outputs(edges)
 
-    def traverse(nodes, outputs, start):
-        queue = [start]
-        seen = set()
-        while queue:
-            node = queue.pop()
-            seen.add(node)
-            for next_node in outputs[node]:
-                if next_node not in seen:
-                    seen.add(node)
-                    edge = frozenset((node, next_node))
-                    if edge not in cuts:
-                        queue.append(next_node)
-        return len(seen)
-
-    tried = set()
-    for cuts in find_min_cuts(edges):
-        cuts = frozenset(cuts)
-        if cuts in tried:
-            continue
-        pruned_outputs = {k: v - cuts for (k, v) in outputs.items()}
-        n = traverse(node_set, pruned_outputs, start)
-        if n < len(nodes):
-            return n, len(nodes) - n
+    cuts = find_min_cuts(edges)
+    outputs = make_outputs(edges, cuts)
+    n = traverse(outputs, start)
+    return n, len(nodes) - n
 
 
 def part_1(text):
