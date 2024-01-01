@@ -1,5 +1,7 @@
+import array
 import random
 from collections import deque
+from copy import copy
 
 
 def parse(text):
@@ -38,7 +40,8 @@ def make_set(forest, x):
 
 
 def make_forest_from_edges(edges):
-    forest = {}
+    n = max(max(a, b) for (a, b) in edges) + 1
+    forest = array.array('L', [n + 1] * n)
     for a, b in edges:
         forest[a] = a
         forest[b] = b
@@ -67,11 +70,10 @@ def karger_contract(edges, forest, remaining_nodes, final_node_count=2):
     # Karger contraction using Kruskal's algorithm
     #
     # Edges and forest are modified. edges are assumed to be pre-shuffled.
-    remaining_edges = []
-    for edge in edges:
-        u, v = edge
-        u_root = find_set(forest, u)
-        v_root = find_set(forest, v)
+    remaining_edges = array.array('L')
+    for i, edge in enumerate(edges):
+        u_root = find_set(forest, edge & 0xFFFF)
+        v_root = find_set(forest, edge >> 16)
         if u_root != v_root:
             if remaining_nodes > final_node_count:
                 # Fast version of merge_sets given that we have unequal roots
@@ -89,43 +91,46 @@ def count_edges(graph):
 def karger_stein_contract(edges, forest, remaining_nodes):
     # N.B. Input edges and forest are modified. Also, input
     # edges are assumed to be pre-shuffled.
-    #
+    if remaining_nodes <= 6:
+        return karger_contract(edges, forest, remaining_nodes)
+
     # In the "real" Karger-Stein algorithm,
     # `target = ceil(1 + remaining_nodes / sqrt(2)),
     # but that never even finishes here, while this less aggressive
     # target works fine. Possibly related to me "finishing off"
     # iteration over nodes in kruskal?
     target_nodes = remaining_nodes // 2
-    if target_nodes <= 6:
-        return karger_contract(edges, forest, remaining_nodes)
+
     edges, forest, remaining_nodes = karger_contract(
         edges, forest, remaining_nodes, target_nodes
     )
     # We only need to copy and reshuffle on one branch.
-    copy_of_edges = edges.copy()
+    copy_of_edges = copy(edges)
     random.shuffle(copy_of_edges)
-    graph_1 = karger_stein_contract(copy_of_edges, forest.copy(), remaining_nodes)
+    graph_1 = karger_stein_contract(copy_of_edges, copy(forest), remaining_nodes)
     graph_2 = karger_stein_contract(edges, forest, remaining_nodes)
-    return min(graph_1, graph_2, key=count_edges)
+    return min([graph_1, graph_2], key=count_edges)
 
 
 def contract(edges, forest, n_nodes):
     # Convert edges to tuples, since they are faster and we aren't doing comparisons
-    shuffled_edges = edges.copy()
+    shuffled_edges = copy(edges)
     random.shuffle(shuffled_edges)
-    edges, forest, remaining_nodes = karger_stein_contract(
-        shuffled_edges, forest.copy(), n_nodes
-    )
+    edges, *_ = karger_stein_contract(shuffled_edges, copy(forest), n_nodes)
     return edges
 
 
 def find_min_cuts(edges, n=3):
-    edges = edges.copy()
+    # edges = edges.copy()
     forest = make_forest_from_edges(edges)
+    edge_array = array.array('L')
+    for a, b in edges:
+        edge_array.append((a << 16) + b)
     n_nodes = len(forest)
     while True:
-        cut_edges = contract(edges, forest, n_nodes)
-        if len(cut_edges) == n:
+        cut_edge_array = contract(edge_array, forest, n_nodes)
+        if len(cut_edge_array) == n:
+            cut_edges = [(x >> 16, x & 0xFFFF) for x in cut_edge_array]
             return cut_edges
 
 
