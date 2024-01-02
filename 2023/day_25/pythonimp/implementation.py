@@ -1,6 +1,5 @@
 import array
 import random
-from collections import deque
 from copy import copy
 
 
@@ -41,7 +40,8 @@ def make_set(forest, x):
 
 def make_forest_from_edges(edges):
     n = max(max(a, b) for (a, b) in edges) + 1
-    forest = array.array('L', [n + 1] * n)
+    # Need at least 16 bit for forest so chose unsigned int.
+    forest = array.array('I', [n + 1] * n)
     for a, b in edges:
         forest[a] = a
         forest[b] = b
@@ -70,8 +70,9 @@ def karger_contract(edges, forest, remaining_nodes, final_node_count=2):
     # Karger contraction using Kruskal's algorithm
     #
     # Edges and forest are modified. edges are assumed to be pre-shuffled.
+    # Need two 16 bit chunks (so 32 bit total) for edges, so chose unsigned long.
     remaining_edges = array.array('L')
-    for i, edge in enumerate(edges):
+    for edge in edges:
         u_root = find_set(forest, edge & 0xFFFF)
         v_root = find_set(forest, edge >> 16)
         if u_root != v_root:
@@ -94,11 +95,12 @@ def karger_stein_contract(edges, forest, remaining_nodes):
     if remaining_nodes <= 6:
         return karger_contract(edges, forest, remaining_nodes)
 
-    # In the "real" Karger-Stein algorithm,
-    # `target = ceil(1 + remaining_nodes / sqrt(2)),
-    # but that never even finishes here, while this less aggressive
-    # target works fine. Possibly related to me "finishing off"
-    # iteration over nodes in kruskal?
+    # In the "real" Karger-Stein algorithm, `target = ceil
+    # (1 + remaining_nodes / sqrt(2)), but that takes ~400x as long as,
+    # this less aggressive target. This likely related to this graph
+    # not being fully connected since the 1/sqrt(2) scaling reduces the
+    # edges by 2 each time in a a fully connected graph, while this
+    # graph has edges more less proportional to nodes target_nodes =
     target_nodes = remaining_nodes // 2
 
     edges, forest, remaining_nodes = karger_contract(
@@ -114,60 +116,41 @@ def karger_stein_contract(edges, forest, remaining_nodes):
 
 def contract(edges, forest, n_nodes):
     # Convert edges to tuples, since they are faster and we aren't doing comparisons
-    shuffled_edges = copy(edges)
-    random.shuffle(shuffled_edges)
-    edges, *_ = karger_stein_contract(shuffled_edges, copy(forest), n_nodes)
-    return edges
+    random.shuffle(edges)
+    edges, tree, _ = karger_stein_contract(edges, forest, n_nodes)
+    return edges, tree
 
 
-def find_min_cuts(edges, n=3):
-    # edges = edges.copy()
+def find_group_sizes(tree):
+    group_sizes = {}
+    for node, _ in enumerate(tree):
+        exemplar = find_set(tree, node)
+        if exemplar not in group_sizes:
+            group_sizes[exemplar] = 0
+        group_sizes[exemplar] += 1
+    assert len(group_sizes) == 2
+    return tuple(group_sizes.values())
+
+
+def find_min_cut_sizes(edges, n=3):
     forest = make_forest_from_edges(edges)
     edge_array = array.array('L')
     for a, b in edges:
         edge_array.append((a << 16) + b)
     n_nodes = len(forest)
     while True:
-        cut_edge_array = contract(edge_array, forest, n_nodes)
+        cut_edge_array, tree = contract(copy(edge_array), copy(forest), n_nodes)
         if len(cut_edge_array) == n:
-            cut_edges = [(x >> 16, x & 0xFFFF) for x in cut_edge_array]
-            return cut_edges
+            return find_group_sizes(tree)
 
 
-def find_nodes(edges):
+def destring_edges(edges):
     nodes = set()
     for a, b in edges:
         nodes.add(a)
         nodes.add(b)
-    return nodes
-
-
-def destring_edges(edges):
-    node_map = {x: i for i, x in enumerate(sorted(find_nodes(edges)))}
+    node_map = {x: i for i, x in enumerate(sorted(nodes))}
     return list((node_map[a], node_map[b]) for (a, b) in edges)
-
-
-def traverse(outputs, start):
-    queue = deque([start])
-    seen = set()
-    while queue:
-        node = queue.pop()
-        seen.add(node)
-        for next_node in outputs[node]:
-            if next_node not in seen:
-                queue.appendleft(next_node)
-    return len(seen)
-
-
-def count_diconnected(edges):
-    edges = destring_edges(edges)
-    nodes = find_nodes(edges)
-    start, *_ = nodes
-
-    cuts = find_min_cuts(edges)
-    outputs = make_outputs(edges, cuts)
-    n = traverse(outputs, start)
-    return n, len(nodes) - n
 
 
 def part_1(text):
@@ -177,8 +160,8 @@ def part_1(text):
 
     inputs -> 532891
     """
-    edges = parse(text)
-    n1, n2 = count_diconnected(edges)
+    edges = destring_edges(parse(text))
+    n1, n2 = find_min_cut_sizes(edges)
     return n1 * n2
 
 
@@ -195,8 +178,5 @@ if __name__ == "__main__":
     data_dir = Path(__file__).parents[1] / "data"
     with open(data_dir / "example.txt") as f:
         EXAMPLE_TEXT = f.read()
-
-    with open(data_dir / "input.txt") as f:
-        INPUT_TEXT = f.read()
 
     doctest.testmod()
