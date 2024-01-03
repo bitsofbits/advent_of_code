@@ -1,6 +1,4 @@
-import array
 import random
-from copy import copy
 
 
 def parse(text):
@@ -40,8 +38,8 @@ def make_set(forest, x):
 
 def make_forest_from_edges(edges):
     n = max(max(a, b) for (a, b) in edges) + 1
-    # Need at least 16 bit for forest so chose unsigned int.
-    forest = array.array('I', [n + 1] * n)
+    # Need at least 16 bit for forest so chose unsigned short.
+    forest = [-1] * n
     for a, b in edges:
         forest[a] = a
         forest[b] = b
@@ -71,7 +69,7 @@ def karger_contract(edges, forest, remaining_nodes, final_node_count=2):
     #
     # Edges and forest are modified. edges are assumed to be pre-shuffled.
     # Need two 16 bit chunks (so 32 bit total) for edges, so chose unsigned long.
-    remaining_edges = array.array('L')
+    remaining_edges = []
     for edge in edges:
         u_root = find_set(forest, edge & 0xFFFF)
         v_root = find_set(forest, edge >> 16)
@@ -89,36 +87,33 @@ def count_edges(graph):
     return len(graph[0])
 
 
-def karger_stein_contract(edges, forest, remaining_nodes):
+def karger_stein_contract(edges, forest, node_count):
     # N.B. Input edges and forest are modified. Also, input
     # edges are assumed to be pre-shuffled.
-    if remaining_nodes <= 6:
-        return karger_contract(edges, forest, remaining_nodes)
 
     # In the "real" Karger-Stein algorithm, `target = ceil
     # (1 + remaining_nodes / sqrt(2)), but that takes ~400x as long as,
     # this less aggressive target. This likely related to this graph
     # not being fully connected since the 1/sqrt(2) scaling reduces the
     # edges by 2 each time in a a fully connected graph, while this
-    # graph has edges more less proportional to nodes target_nodes =
-    target_nodes = remaining_nodes // 2
+    # graph has edges more less proportional to nodes target_nodes.
 
-    edges, forest, remaining_nodes = karger_contract(
-        edges, forest, remaining_nodes, target_nodes
+    target_node_count = min(len(edges) ** 0.5, node_count - 1)
+    # target_node_count = node_count // 2
+
+    edges, forest, node_count = karger_contract(
+        edges, forest, node_count, target_node_count
     )
+
+    if node_count == 2:
+        return edges, forest, node_count
+
     # We only need to copy and reshuffle on one branch.
-    copy_of_edges = copy(edges)
+    copy_of_edges = edges.copy()
     random.shuffle(copy_of_edges)
-    graph_1 = karger_stein_contract(copy_of_edges, copy(forest), remaining_nodes)
-    graph_2 = karger_stein_contract(edges, forest, remaining_nodes)
+    graph_1 = karger_stein_contract(copy_of_edges, forest.copy(), node_count)
+    graph_2 = karger_stein_contract(edges, forest, node_count)
     return min([graph_1, graph_2], key=count_edges)
-
-
-def contract(edges, forest, n_nodes):
-    # Convert edges to tuples, since they are faster and we aren't doing comparisons
-    random.shuffle(edges)
-    edges, tree, _ = karger_stein_contract(edges, forest, n_nodes)
-    return edges, tree
 
 
 def find_group_sizes(tree):
@@ -134,12 +129,16 @@ def find_group_sizes(tree):
 
 def find_min_cut_sizes(edges, n=3):
     forest = make_forest_from_edges(edges)
-    edge_array = array.array('L')
+    edge_array = []
     for a, b in edges:
         edge_array.append((a << 16) + b)
     n_nodes = len(forest)
     while True:
-        cut_edge_array, tree = contract(copy(edge_array), copy(forest), n_nodes)
+        random.shuffle(edge_array)
+        cut_edge_array, tree, _ = karger_stein_contract(
+            edge_array.copy(), forest.copy(), n_nodes
+        )
+
         if len(cut_edge_array) == n:
             return find_group_sizes(tree)
 
@@ -153,15 +152,21 @@ def destring_edges(edges):
     return list((node_map[a], node_map[b]) for (a, b) in edges)
 
 
-def part_1(text):
+def part_1(text, n_trials=100):
     """
     >>> part_1(EXAMPLE_TEXT)
     54
 
     inputs -> 532891
     """
-    edges = destring_edges(parse(text))
-    n1, n2 = find_min_cut_sizes(edges)
+    from time import perf_counter
+
+    t0 = perf_counter()
+    for _ in range(n_trials):
+        edges = destring_edges(parse(text))
+        n1, n2 = find_min_cut_sizes(edges)
+    seconds_per_trial = (perf_counter() - t0) / n_trials
+    print(f"{seconds_per_trial * 1000:.3f} ms per trial over {n_trials} trials")
     return n1 * n2
 
 
