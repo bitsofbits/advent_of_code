@@ -57,7 +57,7 @@ slippery_deltas = {
     '.': [(0, 1), (1, 0), (0, -1), (-1, 0)],
 }
 
-DEFAULT_MAX_QUEUE_SIZE = 256
+DEFAULT_MAX_QUEUE_SIZE = 64
 
 
 def part_1(text, max_queue_size=DEFAULT_MAX_QUEUE_SIZE):
@@ -216,14 +216,17 @@ def build_initial_state(edges, start, end):
     queue = deque([(start_cost + end_cost, initial_visited, adjacent_to_start)])
     max_length = 0
 
-    return queue, adjacent_to_end, max_length, source_to_targets
+    return queue, adjacent_to_end, max_length, source_to_targets, {}
 
 
 def traverse_from_state(state):
-    queue, adjacent_to_end, max_length, source_to_targets = state
+    queue, adjacent_to_end, max_length, source_to_targets, seen = state
 
     while queue:
         path_length, visited, node = queue.pop()
+        if seen.get(visited, -1) >= path_length:
+            continue
+        seen[visited] = path_length
         if node == adjacent_to_end:
             max_length = max(max_length, path_length)
         else:
@@ -246,10 +249,13 @@ def find_longest_path_edges(edges, start, end, max_queue_size=32):
 
 
 def traverse_warmup_state(state, max_queue_size):
-    queue, adjacent_to_end, max_length, source_to_targets = state
+    queue, adjacent_to_end, max_length, source_to_targets, seen = state
 
     while queue and len(queue) < max_queue_size:
         path_length, visited, node = queue.popleft()
+        if seen.get(visited, -1) >= path_length:
+            continue
+        seen[visited] = path_length
         if node == adjacent_to_end:
             max_length = max(max_length, path_length)
         else:
@@ -258,7 +264,7 @@ def traverse_warmup_state(state, max_queue_size):
                     next_visited = visited | next_node
                     next_path_length = path_length + weight
                     queue.append((next_path_length, next_visited, next_node))
-    return queue, adjacent_to_end, max_length, source_to_targets
+    return queue, adjacent_to_end, max_length, source_to_targets, seen
 
 
 def part_2(text, max_queue_size=DEFAULT_MAX_QUEUE_SIZE):

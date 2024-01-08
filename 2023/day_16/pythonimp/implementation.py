@@ -39,6 +39,7 @@ transform_map = {
 }
 
 
+# TODO: could return next locations following along till we hit an obstacle
 @cache
 def transform(i, j, heading, x, n_rows, n_cols):
     """

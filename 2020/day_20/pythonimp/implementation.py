@@ -47,7 +47,43 @@ def edge_keys(tile):
         yield make_key(edge)
 
 
+def find_corners(tiles):
+    edge_map = defaultdict(set)
+    for k, tile in tiles.items():
+        for edge in edge_keys(tile):
+            edge_map[edge].add(k)
+    singleton_edge_counts = defaultdict(int)
+    for ids in edge_map.values():
+        match tuple(ids):
+            case (a,):
+                singleton_edge_counts[a] += 1
+            case (_, _):
+                pass
+            case _:
+                raise ValueError(ids)
+    return[k for (k, v) in singleton_edge_counts.items() if v == 2]
+
+
+def get_edge(tile, edge_number):
+    match edge_number:
+        case 0:
+            return tile[0, :]
+        case 1:
+            return tile[:, -1]
+        case 2:
+            return tile[-1, :]
+        case 3:
+            return tile[:, 0]
+        case _:
+            raise ValueError(edge_number)
+
+
 def order(tiles):
+    """
+    >>> tiles = parse(EXAMPLE_TEXT)
+    >>> print(order(tiles))
+    >>> 
+    """
     edge_map = defaultdict(set)
     for k, tile in tiles.items():
         for edge in edge_keys(tile):
@@ -80,15 +116,41 @@ def order(tiles):
             raise ValueError(counts)
     assert tuple(len(edge_map[x]) == 1 for x in edge_keys(t)) == (1, 0, 0, 1)
     #
-    ordered = [[t]]
-    unused = {k for k in tiles if k != id_}
-    pending = [(t, 1), (t, 2)]
-    # while pending
-    # while unused:
-    #     for k in unused:
-    #         # if match(k, last[:, -1])
+    used_tiles = set()
+    used_edges = set()
+    pending = [(id_, t, 1), (id_, t, 2)]
+    located = [t, 0, 0]
+    while pending:
+        tile_id, tile, edge_number = pending.pop()
+        used_tiles.add(tile_id)
+        edge = get_edge(tile, edge_number)
+        edge_key = make_key(edge)
+        for next_tile_id in edge_map[edge_key]:
+            if next_tile_id not in used_tiles:
+                next_tile = tiles[next_tile_id]
+                for adjacent_edge_number, adjacent_edge_key in enumerate(edge_keys(next_tile)):
+                    if edge_key == adjacent_edge_key:
+                        match adjacent_edge_number:
+                            case 0:
 
-    return corners, ordered
+
+                        break
+
+
+
+    return corners
+
+
+def assemble(tiles):
+    """
+    # >>> tiles = parse(EXAMPLE_TEXT)
+    # >>> print(assemble(tiles))
+
+    """
+    block_rows = []
+    corners = order(tiles)
+    # for 
+    print(corners)
 
 
 def part_1(text):
@@ -97,7 +159,7 @@ def part_1(text):
     20899048083289
     """
     tiles = parse(text)
-    corners, _ = order(tiles)
+    corners = find_corners(tiles)
     return np.prod(corners)
 
 
