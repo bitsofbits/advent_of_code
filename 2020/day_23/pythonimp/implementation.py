@@ -75,21 +75,16 @@ def apply_step_ll(cups, origin, max_cup):
         target_label = offset_mod(target_label - 1, max_cup)
 
     # Cut out removed cups
-    n = cups[origin]
     cups[origin] = next_label
-    n = cups[next_label]
-    cups[next_label] = n
 
     # Insert removed cups after target_label
-    label = target_label
     next_label = cups[target_label]
-    n = cups[label]
-    for x in removed:
-        cups[label] = x
-        label = x
-    cups[label] = next_label
-    n = cups[next_label]
-    cups[next_label] = n
+    last_label = target_label
+    for label in removed:
+        cups[last_label] = label
+        last_label = label
+    cups[last_label] = next_label
+    cups[next_label] = cups[next_label]
 
     return cups, cups[origin]
 
@@ -104,7 +99,6 @@ def play_game_ll(cups, iterations):
     """
     raw_cups = cups
     n = len(cups)
-    # cups = {}
     cups = [None] * (n + 1)
     for i, k in enumerate(raw_cups):
         cups[k] = raw_cups[(i + 1) % n]
