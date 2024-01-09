@@ -1,4 +1,5 @@
 from collections import deque
+from math import inf, isinf
 from multiprocessing import Pool
 
 
@@ -57,15 +58,15 @@ slippery_deltas = {
     '.': [(0, 1), (1, 0), (0, -1), (-1, 0)],
 }
 
-DEFAULT_MAX_QUEUE_SIZE = 64
+DEFAULT_MAX_QUEUE_SIZE = 256
 
 
-def part_1(text, max_queue_size=DEFAULT_MAX_QUEUE_SIZE):
+def part_1(text, max_queue_size=inf):
     """
-    >>> part_1(EXAMPLE_TEXT, max_queue_size=2)
+    >>> part_1(EXAMPLE_TEXT)
     94
-
-    input => 2306
+    >>> part_1(INPUT_TEXT)
+    2306
     """
     board = parse(text)
     edges, start, end = board_to_graph(board, slippery_deltas)
@@ -181,17 +182,6 @@ def simplify_edges(edges, start, end):
     return new_edges
 
 
-def path_length(path, weights):
-    if not path:
-        return 0
-    x0 = path[0]
-    length = 0
-    for x1 in path[1:]:
-        length += weights[x0, x1]
-        x0 = x1
-    return length
-
-
 def build_initial_state(edges, start, end):
     raw_edges = simplify_edges(edges, start, end)
     raw_nodes = set()
@@ -221,12 +211,13 @@ def build_initial_state(edges, start, end):
 
 def traverse_from_state(state):
     queue, adjacent_to_end, max_length, source_to_targets, seen = state
-
+    seen = seen.copy()
     while queue:
         path_length, visited, node = queue.pop()
-        if seen.get(visited, -1) >= path_length:
+        key = (visited, node)
+        if seen.get(key, -1) >= path_length:
             continue
-        seen[visited] = path_length
+        seen[key] = path_length
         if node == adjacent_to_end:
             max_length = max(max_length, path_length)
         else:
@@ -238,12 +229,14 @@ def traverse_from_state(state):
     return max_length
 
 
-def find_longest_path_edges(edges, start, end, max_queue_size=32):
+def find_longest_path_edges(edges, start, end, max_queue_size):
     state = build_initial_state(edges, start, end)
+    if isinf(max_queue_size):
+        return traverse_from_state(state)
     queue, *other_state = traverse_warmup_state(state, max_queue_size=max_queue_size)
     args = [(deque([x]),) + tuple(other_state) for x in queue]
     if len(args) == 0:
-        return other_state[-2]
+        return other_state[-3]
     with Pool() as p:
         return max(p.imap_unordered(traverse_from_state, args))
 
@@ -253,9 +246,9 @@ def traverse_warmup_state(state, max_queue_size):
 
     while queue and len(queue) < max_queue_size:
         path_length, visited, node = queue.popleft()
-        if seen.get(visited, -1) >= path_length:
+        if seen.get((visited, node), -1) >= path_length:
             continue
-        seen[visited] = path_length
+        seen[(visited, node)] = path_length
         if node == adjacent_to_end:
             max_length = max(max_length, path_length)
         else:
@@ -271,8 +264,8 @@ def part_2(text, max_queue_size=DEFAULT_MAX_QUEUE_SIZE):
     """
     >>> part_2(EXAMPLE_TEXT, max_queue_size=1)
     154
-
-    inputs -> 6718
+    >>> part_2(INPUT_TEXT)
+    6718
     """
     board = parse(text)
     edges, start, end = board_to_graph(board, boring_deltas)
@@ -286,5 +279,7 @@ if __name__ == "__main__":
     data_dir = Path(__file__).parents[1] / "data"
     with open(data_dir / "example.txt") as f:
         EXAMPLE_TEXT = f.read()
+    with open(data_dir / "input.txt") as f:
+        INPUT_TEXT = f.read()
 
     doctest.testmod()
