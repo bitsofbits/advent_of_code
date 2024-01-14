@@ -1,12 +1,15 @@
 from collections import deque
-
-
-def sign(x):
-    return int(x > 0) - int(x < 0)
+from copy import deepcopy
+from heapq import heappop, heappush
+from math import inf
 
 
 def parse(text):
     return [int(x) for x in text.strip().split(',')]
+
+
+def sign(x):
+    return int(x > 0) - int(x < 0)
 
 
 def get_value(x, mode, program, relative_base):
@@ -48,6 +51,12 @@ class Computer:
         self.inputs = deque()
         self.outputs = deque()
         self.run()
+
+    def copy(self):
+        return deepcopy(self)
+
+    def __lt__(self, other):
+        return False
 
     def _get(self, ndx, mode):
         assert ndx >= 1
@@ -128,99 +137,103 @@ class Computer:
                     raise ValueError(f'unknown opcode: {opcode}')
 
 
-def render(board):
-    i0 = min(i for (i, j) in board)
-    i1 = max(i for (i, j) in board)
-    j0 = min(j for (i, j) in board)
-    j1 = max(j for (i, j) in board)
+delta_ij = {1: (-1, 0), 2: (1, 0), 3: (0, -1), 4: (0, 1)}
+
+
+def traverse(computer):
+    queue = [(0, (0, 0), 1, computer)]
+    visited = set()
+    walls = set()
+    best_count = inf
+    generator_loc = None
+    while queue:
+        count, point, status, computer = heappop(queue)
+
+        if point in visited or point in walls:
+            continue
+
+        assert status in (0, 1, 2)
+        if status == 0:
+            walls.add(point)
+            continue
+        elif status == 1:
+            visited.add(point)
+        elif status == 2:
+            best_count = min(best_count, count)
+            assert generator_loc is None
+            generator_loc = point
+            # Don't just return here because we want to make sure to fill full map
+            continue
+
+        for command in (1, 2, 3, 4):
+            next_computer = computer.copy()
+            next_computer.push_input(command)
+            next_status = next_computer.pop_output()
+            next_count = count + 1
+            di, dj = delta_ij[command]
+            i0, j0 = point
+            next_point = (i0 + di, j0 + dj)
+            heappush(queue, (next_count, next_point, next_status, next_computer))
+    return best_count, generator_loc, walls
+
+
+def render(walls):
+    i0 = min(i for (i, j) in walls)
+    i1 = max(i for (i, j) in walls)
+    j0 = min(j for (i, j) in walls)
+    j1 = max(j for (i, j) in walls)
 
     scan_lines = []
     for i in range(i0, i1 + 1):
         chars = []
         for j in range(j0, j1 + 1):
-            match board.get((i, j), 0):
-                case 0:
-                    chars.append(' ')
-                case 1:
-                    chars.append('#')
-                case 2:
-                    chars.append('*')
-                case 3:
-                    chars.append('_')
-                case 4:
-                    chars.append('o')
-                case _:
-                    raise ValueError()
+            if (i, j) in walls:
+                chars.append('#')
+            else:
+                chars.append('.')
         scan_lines.append(''.join(chars))
     return '\n'.join(scan_lines)
 
 
-def batched(p, n):
-    accum = []
-    for x in p:
-        accum.append(x)
-        if len(accum) == n:
-            yield tuple(accum)
-            del accum[:]
-    if accum:
-        yield tuple(accum)
+def part_1(text, return_maze=False):
+    """
+    >>> part_1(INPUT_TEXT, return_maze=True)
+    404
+
+    """
+    computer = Computer(parse(text))
+    count, *_ = traverse(computer)
+    return count
 
 
-def part_1(text):
-    """
-    >>> part_1(INPUT_TEXT)
-    298
-    """
-    program = parse(text)
-    computer = Computer(program)
-    board = {}
-    for j, i, tile_id in batched(computer.pop_all_output(), 3):
-        board[i, j] = tile_id
-    return sum((x == 2) for x in board.values())
-    # print(render(board))
+def fill_from(location, walls):
+    queue = [(0, location)]
+    visited = set()
+    max_time = 0
+    while queue:
+        time, point = heappop(queue)
+        if point in visited or point in walls:
+            continue
+        visited.add(point)
+        max_time = max(time, max_time)
+
+        next_time = time + 1
+        i0, j0 = point
+        for di, dj in delta_ij.values():
+            next_point = (i0 + di, j0 + dj)
+            queue.append((next_time, next_point))
+    return max_time
 
 
 def part_2(text):
     """
     >>> part_2(INPUT_TEXT)
-    13956
+    406
     """
-    program = parse(text)
-    program[0] = 2  # insert quarters
-    computer = Computer(program)
-    last_x = last_y = None
-    delta_x = 1
-    delta_y = 1
-    paddle_y = paddle_x = None
-    board = {}
-    max_score = 0
-    while not board or 2 in board.values():
-        for j, i, tile_id in batched(computer.pop_all_output(), 3):
-            if (j, i) == (-1, 0):
-                max_score = max(tile_id, max_score)
-            else:
-                board[i, j] = tile_id
-            if tile_id == 3:
-                paddle_x, paddle_y = j, i
-            if tile_id == 4:
-                x, y = j, i
-                if last_x is not None:
-                    delta_x = x - last_x
-                    delta_y = y - last_y
-                last_x = x
-                last_y = y
-
-        if y > paddle_y:
-            break
-
-        if board.get((y + delta_y, x + delta_x), 0) != 0:
-            delta_x = delta_y = 0
-
-        dy = paddle_y - y
-        computer.push_input(x + delta_x * dy - paddle_x)
-
-    assert 2 not in board.values()
-    return max_score
+    computer = Computer(parse(text))
+    best_count, generator_loc, walls = traverse(computer)
+    return fill_from(generator_loc, walls)
+    # TODO: flood fill and count iterations
 
 
 if __name__ == "__main__":
