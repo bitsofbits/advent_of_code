@@ -1,5 +1,6 @@
 from collections import deque
 from copy import deepcopy
+from functools import cache
 from heapq import heappop, heappush
 from math import inf
 
@@ -72,6 +73,11 @@ class Computer:
         self.inputs.appendleft(x)
         self.run()
 
+    def push_all_inputs(self, sequence):
+        for x in sequence:
+            self.inputs.appendleft(x)
+        self.run()
+
     def pop_output(self):
         return self.outputs.pop()
 
@@ -137,60 +143,221 @@ class Computer:
                     raise ValueError(f'unknown opcode: {opcode}')
 
 
-delta_ij = {1: (-1, 0), 2: (1, 0), 3: (0, -1), 4: (0, 1)}
-
-
-def traverse(computer):
-    queue = [(0, (0, 0), 1, computer)]
-    visited = set()
-    walls = set()
-    best_count = inf
-    generator_loc = None
-    while queue:
-        count, point, status, computer = heappop(queue)
-
-        if point in visited or point in walls:
-            continue
-
-        assert status in (0, 1, 2)
-        if status == 0:
-            walls.add(point)
-            continue
-        elif status == 1:
-            visited.add(point)
-        elif status == 2:
-            best_count = min(best_count, count)
-            assert generator_loc is None
-            generator_loc = point
-            # Don't just return here because we want to make sure to fill full map
-            continue
-
-        for command in (1, 2, 3, 4):
-            next_computer = computer.copy()
-            next_computer.push_input(command)
-            next_status = next_computer.pop_output()
-            next_count = count + 1
-            di, dj = delta_ij[command]
-            i0, j0 = point
-            next_point = (i0 + di, j0 + dj)
-            heappush(queue, (next_count, next_point, next_status, next_computer))
-    return best_count, generator_loc, walls
+def find_intersections(image):
+    image = image.strip().split('\n')
+    m = len(image)
+    n = len(image[0])
+    for i0 in range(1, m - 1):
+        assert len(image[i0]) == n
+        for j0 in range(1, n - 1):
+            for di, dj in [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)]:
+                i = i0 + di
+                j = j0 + dj
+                if image[i][j] not in '#^v<>':
+                    break
+            else:
+                yield i0, j0
 
 
 def part_1(text):
     """
     >>> part_1(INPUT_TEXT)
+    5740
     """
     computer = Computer(parse(text))
     outputs = computer.pop_all_outputs()
     image = ''.join(chr(x) for x in outputs)
-    print(image)
+    intersections = list(find_intersections(image))
+    return sum(a * b for (a, b) in intersections)
+
+
+def build_state(map):
+    scaffold = set()
+    robot_state = None
+    for i, row in enumerate(map.strip().split('\n')):
+        for j, x in enumerate(row):
+            if x != '.':
+                scaffold.add((i, j))
+                if x != '#':
+                    robot_state = (i, j, '^>v<'.index(x))
+    return scaffold, robot_state
+
+
+delta_ij = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
+
+
+@cache
+def next_states(state, is_straight):
+    i, j, direction = state
+    di, dj = delta_ij[direction]
+    if (i, j) in is_straight:
+        return [('F', (i + di, j + dj, direction))]
+    else:
+        return [
+            ('F', (i + di, j + dj, direction)),
+            ('R', (i, j, (direction + 1) % 4)),
+            ('L', (i, j, (direction - 1) % 4)),
+        ]
+
+
+def find_straight(scaffold):
+    is_straight = set()
+    for i0, j0 in scaffold:
+        directions = []
+        for direction, (di, dj) in delta_ij.items():
+            if (i0 + di, j0 + dj) in scaffold:
+                directions.append(direction)
+        if len(directions) == 2:
+            d1, d2 = directions
+            if d1 == (d2 + 2) % 4:
+                is_straight.add((i0, j0))
+    return frozenset(is_straight)
+
+
+def traverse(scaffold, robot_state):
+    is_straight = find_straight(scaffold)
+    queue = [(1, 0, robot_state, frozenset({robot_state[:2]}), ())]
+    states = set()
+    while queue:
+        _, count, state, visited, commands = heappop(queue)
+        key = (state, visited)
+        if key in states:
+            continue
+        states.add(key)
+
+        next_count = count if (commands[:-2] == ('F', 'F')) else count + 1
+        next_visited = visited | {state[:2]}
+
+        if len(next_visited) == len(scaffold):
+            return commands
+
+        for command, next_state in next_states(state, is_straight):
+            next_position = next_state[:2]
+            if next_position in scaffold:
+                next_commands = commands + (command,)
+                heappush(
+                    queue,
+                    (
+                        -len(next_visited),
+                        next_count,
+                        next_state,
+                        next_visited,
+                        next_commands,
+                    ),
+                )
+
+
+def render(scaffold, robot_state, is_straight=(), visited=()):
+    i0 = min(i for (i, j) in scaffold)
+    i1 = max(i for (i, j) in scaffold)
+    j0 = min(j for (i, j) in scaffold)
+    j1 = max(j for (i, j) in scaffold)
+
+    (i_r, j_r, d_r) = robot_state
+
+    scan_lines = []
+    for i in range(i0, i1 + 1):
+        chars = []
+        for j in range(j0, j1 + 1):
+            if (i, j) == (i_r, j_r):
+                chars.append('^>v<'[d_r])
+                assert (i, j) in scaffold
+            elif (i, j) in scaffold:
+                if (i, j) in visited:
+                    chars.append('*')
+                elif (i, j) in is_straight:
+                    chars.append('#')
+                else:
+                    chars.append('@')
+            else:
+                chars.append('.')
+        scan_lines.append(''.join(chars))
+    return '\n'.join(scan_lines)
+
+
+def condense_commands(commands):
+    forward_count = 0
+    for x in commands:
+        if x in 'LR':
+            if forward_count > 0:
+                yield str(forward_count)
+                forward_count = 0
+            yield x
+        else:
+            forward_count += 1
+    if forward_count > 0:
+        yield str(forward_count)
+
+
+def encode_next(sequence, dictionary):
+    for name, run in zip("ABC", dictionary):
+        if run == sequence[: len(run)]:
+            # Greedy, not general
+            return name
+    return None
+
+
+def encode_commands(commands):
+    # Find candidates for dictionary. Needs to be at most 20 bytes long including commas
+    runs = set()
+    n_commands = len(commands)
+    for i in range(n_commands):
+        for j in range(i + 1, n_commands):
+            run = commands[i:j]
+            char_count = len(','.join(str(x) for x in run))
+            if char_count > 20:
+                break
+            runs.add(tuple(run))
+
+    runs = sorted(runs)
+    commands = tuple(commands)
+
+    for i, A in enumerate(runs):
+        for j, B in enumerate(runs[i + 1 :]):
+            for C in runs[j + 1 :]:
+                remaining_commands = commands
+                encoded = []
+                while remaining_commands:
+                    if name := encode_next(remaining_commands, [A, B, C]):
+                        next_run = {'A': A, 'B': B, 'C': C}[name]
+                        encoded.append(name)
+                        remaining_commands = remaining_commands[len(next_run) :]
+                    else:
+                        break
+                else:
+                    if len(encoded) < 20:
+                        yield encoded, (A, B, C)
 
 
 def part_2(text):
     """
     >>> part_2(INPUT_TEXT)
+    1022165
     """
+    computer = Computer(parse(text))
+    outputs = computer.pop_all_outputs()
+    image = ''.join(chr(x) for x in outputs)
+    scaffold, robot_state = build_state(image)
+    # is_straight = find_straight(scaffold)
+    commands = traverse(scaffold, robot_state)
+    # print(render(scaffold, robot_state, is_straight))
+    commands = list(condense_commands(commands))
+    encoded_command_sets = list(encode_commands(commands))
+    main, (A, B, C) = encoded_command_sets[0]
+    main = ','.join(main) + '\n'
+    (A, B, C) = (','.join(x) + '\n' for x in (A, B, C))
+    # Reset computer and wake up robot
+    program = parse(text)
+    program[0] = 2
+    computer = Computer(program)
+    _ = computer.pop_all_outputs()  # drop initial image
+    for line in (main, A, B, C, 'n\n'):
+        computer.push_all_inputs(ord(x) for x in line)
+    outputs = list(computer.pop_all_outputs())
+    dust = outputs[-1]
+    image = ''.join(chr(x) for x in outputs[:-1]).strip()
+    # print(image)
+    return dust
 
 
 if __name__ == "__main__":
