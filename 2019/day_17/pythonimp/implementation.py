@@ -2,7 +2,6 @@ from collections import deque
 from copy import deepcopy
 from functools import cache
 from heapq import heappop, heappush
-from math import inf
 
 
 def parse(text):
