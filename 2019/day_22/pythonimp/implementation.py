@@ -148,6 +148,7 @@ def part_2(text, n_cards=119315717514047, n_repeats=101741582076661):
     >>> part_2(INPUT_TEXT)
 
     80761411424761 is too high
+    1644352419829
     """
     commands = parse(text)
     a0, b0 = symbolic_apply(n_cards, commands)
