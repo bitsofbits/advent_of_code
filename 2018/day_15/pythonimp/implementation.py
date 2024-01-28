@@ -1,6 +1,8 @@
 from heapq import heappop, heappush
 from itertools import count
-from math import inf, isinf
+from math import inf
+
+# , isinf
 
 
 def render(board, elves=(), goblins=(), distances=()):
@@ -22,7 +24,7 @@ def render(board, elves=(), goblins=(), distances=()):
             elif key in distances:
                 row.append(hex(distances[key])[-1:])
             else:
-                row.append('•')
+                row.append('.')
         rows.append(''.join(row))
     return '\n'.join(rows)
 
@@ -32,13 +34,13 @@ def parse(text):
     >>> board, elves, goblins = parse(EXAMPLE_TEXT)
     >>> print(render(board, elves, goblins))
     #########
-    #G••G••G#
-    #•••••••#
-    #•••••••#
-    #G••E••G#
-    #•••••••#
-    #•••••••#
-    #G••G••G#
+    #G..G..G#
+    #.......#
+    #.......#
+    #G..E..G#
+    #.......#
+    #.......#
+    #G..G..G#
     #########
     """
     board = set()
@@ -88,6 +90,8 @@ def shortest_paths_from(root, occupied_space):
 
 
 def find_path_to(destination, distances):
+    # TODO: this may not be right == may need to do inverse path finding :-()
+
     last_x = x = destination
     while distances[x]:
         last_x = x
@@ -96,9 +100,35 @@ def find_path_to(destination, distances):
     return last_x
 
 
-def part_1(text):
+def find_first_step_from(start, end, occupied_space):
+    # TODO: this may not be right == may need to do inverse path finding :-()
+    distances = shortest_paths_from(end, occupied_space)
+    i, j = start
+    candidates = [(i + di, j + dj) for (di, dj) in moves]
+    return min(candidates, key=lambda x: (distances.get(x, inf), x))
+
+
+def summarize(units, board, combat_round):
+    # No more targets, simulation is over
+    elves = [(i, j) for (i, j, _, is_elf_i) in units if is_elf_i is True]
+    goblins = [(i, j) for (i, j, _, is_elf_i) in units if is_elf_i is False]
+    print(render(board, elves=elves, goblins=goblins))
+    print()
+    # for i in range(ndx + 1, len(units)):
+    #     if units[i][-1] is not None:
+    #         # round not complete
+    #         combat_round -= 1
+    #         break
+    complete_combat_rounds = combat_round - 1
+
+    remaining_hp = sum(hp for (i, j, hp, is_elf) in units if is_elf is not None)
+    return complete_combat_rounds, remaining_hp, complete_combat_rounds * remaining_hp
+
+
+def part_1(text, always_summarize=False):
     """
-    # >>> part_1(EXAMPLE_TEXT)
+    # >>> part_1(EXAMPLE_TEXT, always_summarize=True)
+
     >>> part_1(EXAMPLE2_TEXT)
     #######
     #...#E#
@@ -108,7 +138,7 @@ def part_1(text):
     #.....#
     #######
     <BLANKLINE>
-    37, 982, 36334
+    (37, 982, 36334)
     >>> part_1(EXAMPLE3_TEXT)
     #######
     #.E.E.#
@@ -118,15 +148,17 @@ def part_1(text):
     #...#.#
     #######
     <BLANKLINE>
-    46, 859, 39514
+    (46, 859, 39514)
     """
     board, elves, goblins = parse(text)
     units = [(i, j, 200, True) for (i, j) in elves] + [
         (i, j, 200, False) for (i, j) in goblins
     ]
-    for combat_round in count():
+    for combat_round in count(1):
         units.sort()
-        for ndx, (i0, j0, hit_points, is_elf_0) in enumerate(units):
+        if always_summarize:
+            summarize(units, board, combat_round)
+        for ndx0, (i0, j0, hit_points_0, is_elf_0) in enumerate(units):
             if is_elf_0 is None:
                 # This unit has been removed so skip
                 continue
@@ -136,26 +168,14 @@ def part_1(text):
             # Note this ignores removed items
             target_is_elf = not is_elf_0
             targets = [
-                (i1, j1) for (i1, j1, _, is_elf_1) in units if is_elf_1 == target_is_elf
+                (i1, j1)
+                for (i1, j1, _, is_elf_1) in units
+                if is_elf_1 is not None and is_elf_1 == target_is_elf
             ]
             if len(targets) == 0:
-                # No more targets, simulation is over
-                elves = [(i, j) for (i, j, _, is_elf_i) in units if is_elf_i == True]
-                goblins = [(i, j) for (i, j, _, is_elf_i) in units if is_elf_i == False]
-                print(render(board, elves=elves, goblins=goblins))
-                print()
-                for i in range(ndx + 1, len(units)):
-                    if units[i][-1] is not None:
-                        # round not complete
-                        combat_round -= 1
-                        break
+                return summarize(units, board, combat_round)
 
-                remaining_hp = sum(
-                    hp for (i, j, hp, is_elf) in units if is_elf == is_elf_0
-                )
-                return combat_round, remaining_hp, combat_round * remaining_hp
-
-            # Occupied space consists of all the walls (board) plus all the units that
+            # Occupied space consists of all the walls (board) plus all the units
             # that are still present except where current unit is.
             occupied_space = board | {
                 (i1, j1)
@@ -163,30 +183,38 @@ def part_1(text):
                 if is_elf_1 is not None and (i1, j1) != (i0, j0)
             }
 
-            # Find math of shortest distance from current unit to everywhere on board --
-            # can be used to efficiently find where to process
-            distances = shortest_paths_from((i0, j0), occupied_space)
-            # Also find all the places we might want to go -- that is all cells adjacent to
-            # a target
-
+            # Also find all the places we might want to go -- that is all cells adjacent
+            # to a target
             available_dests = find_cells_in_range_of(targets, occupied_space)
 
-            if not available_dests:
-                continue  # ???
-            destination = min(available_dests, key=lambda x: (distances.get(x, inf), x))
+            if (i0, j0) in available_dests:
+                destination = (i0, j0)
+            else:
+                # Find map of shortest distance from current unit to everywhere on board
+                # -- can be used to efficiently find where to process
+                distances = shortest_paths_from((i0, j0), occupied_space)
 
-            if destination not in distances:
-                continue
+                if not (available_dests & set(distances)):
+                    # No reachable destinations
+                    continue
 
-            if distances[destination] != 0:
-                i1, j1 = destination = find_path_to(destination, distances)
-                units[ndx] = (i1, j1, hit_points, is_elf_0)
+                destination = min(
+                    available_dests, key=lambda x: (distances.get(x, inf), x)
+                )
+
+                assert distances[destination] != 0
+
+                destination = find_first_step_from(
+                    (i0, j0), destination, occupied_space
+                )
+
+                # i1, j1 = destination = find_path_to(destination, distances)
+                units[ndx0] = (*destination, hit_points_0, is_elf_0)
                 # continue
 
-            if distances[destination] != 0:
-                continue
+                # if distances[destination] != 0:
+                #     continue
 
-            # print(">>>")
             i1, j1 = destination
             full_targets = []
             for di, dj in moves:
@@ -194,10 +222,15 @@ def part_1(text):
                     for ndx2, (i2, j2, hit_points_2, is_elf_2) in enumerate(units):
                         if is_elf_2 == target_is_elf and (i2, j2) == (i1 + di, j1 + dj):
                             full_targets.append(ndx2)
+            if not full_targets:
+                continue
+
             ndx2 = min(
                 full_targets, key=lambda i: (units[i][2], units[i][0], units[i][1])
             )
             i2, j2, hit_points_2, is_elf_2 = units[ndx2]
+            assert is_elf_0 is not None
+            assert hit_points_2 > 0 and is_elf_2 is not None and is_elf_2 != is_elf_0
             hit_points_2 -= 3
             if hit_points_2 <= 0:
                 is_elf_2 = None
