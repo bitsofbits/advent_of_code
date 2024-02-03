@@ -32,16 +32,17 @@ def render(board, elves=(), goblins=(), distances=()):
 def parse(text):
     """
     >>> board, elves, goblins = parse(EXAMPLE_TEXT)
-    >>> print(render(board, elves, goblins))
-    #########
-    #G..G..G#
-    #.......#
-    #.......#
-    #G..E..G#
-    #.......#
-    #.......#
-    #G..G..G#
-    #########
+
+    # >>> print(render(board, elves, goblins))
+    # #########
+    # #G..G..G#
+    # #.......#
+    # #.......#
+    # #G..E..G#
+    # #.......#
+    # #.......#
+    # #G..G..G#
+    # #########
     """
     board = set()
     elves = set()
@@ -125,39 +126,9 @@ def summarize(units, board, combat_round):
     return complete_combat_rounds, remaining_hp, complete_combat_rounds * remaining_hp
 
 
-def part_1(text, always_summarize=False):
-    """
-    # >>> part_1(EXAMPLE_TEXT, always_summarize=True)
-
-    >>> part_1(EXAMPLE2_TEXT)
-    #######
-    #...#E#
-    #E#...#
-    #.E##.#
-    #E..#E#
-    #.....#
-    #######
-    <BLANKLINE>
-    (37, 982, 36334)
-    >>> part_1(EXAMPLE3_TEXT)
-    #######
-    #.E.E.#
-    #.#E..#
-    #E.##.#
-    #.E.#.#
-    #...#.#
-    #######
-    <BLANKLINE>
-    (46, 859, 39514)
-    """
-    board, elves, goblins = parse(text)
-    units = [(i, j, 200, True) for (i, j) in elves] + [
-        (i, j, 200, False) for (i, j) in goblins
-    ]
+def simulate(board, units, elf_attack_power=3):
     for combat_round in count(1):
         units.sort()
-        if always_summarize:
-            summarize(units, board, combat_round)
         for ndx0, (i0, j0, hit_points_0, is_elf_0) in enumerate(units):
             if is_elf_0 is None:
                 # This unit has been removed so skip
@@ -173,7 +144,7 @@ def part_1(text, always_summarize=False):
                 if is_elf_1 is not None and is_elf_1 == target_is_elf
             ]
             if len(targets) == 0:
-                return summarize(units, board, combat_round)
+                return units, combat_round
 
             # Occupied space consists of all the walls (board) plus all the units
             # that are still present except where current unit is.
@@ -231,16 +202,84 @@ def part_1(text, always_summarize=False):
             i2, j2, hit_points_2, is_elf_2 = units[ndx2]
             assert is_elf_0 is not None
             assert hit_points_2 > 0 and is_elf_2 is not None and is_elf_2 != is_elf_0
-            hit_points_2 -= 3
+            attack_power = elf_attack_power if is_elf_0 else 3
+            hit_points_2 -= attack_power
             if hit_points_2 <= 0:
                 is_elf_2 = None
             units[ndx2] = (i2, j2, hit_points_2, is_elf_2)
 
 
+def part_1(text, always_summarize=False):
+    """
+    # >>> part_1(EXAMPLE_TEXT, always_summarize=True)
+
+    >>> part_1(EXAMPLE2_TEXT)
+    #######
+    #...#E#
+    #E#...#
+    #.E##.#
+    #E..#E#
+    #.....#
+    #######
+    <BLANKLINE>
+    (37, 982, 36334)
+    >>> part_1(EXAMPLE3_TEXT)
+    #######
+    #.E.E.#
+    #.#E..#
+    #E.##.#
+    #.E.#.#
+    #...#.#
+    #######
+    <BLANKLINE>
+    (46, 859, 39514)
+    """
+    board, elves, goblins = parse(text)
+    units = [(i, j, 200, True) for (i, j) in elves] + [
+        (i, j, 200, False) for (i, j) in goblins
+    ]
+    units, combat_round = simulate(board, units)
+    return summarize(units, board, combat_round)
+
+
 def part_2(text):
     """
     >>> part_2(EXAMPLE_TEXT)
+    #######
+    #..E..#
+    #...E.#
+    #.#.#.#
+    #...#.#
+    #.....#
+    #######
+    <BLANKLINE>
+    (15, 29, 172, 4988)
+    >>> part_2(EXAMPLE2_TEXT)
+
+    >>> part_2(EXAMPLE3_TEXT)
+    #######
+    #.E.#E#
+    #E#...#
+    #.E##.#
+    #E..#E#
+    #.....#
+    #######
+    <BLANKLINE>
+    (4, 33, 948, 31284)
+
+
+    37 * 94 = 3478
     """
+    board, elves, goblins = parse(text)
+    for elf_attack_power in count(3):
+        units = [(i, j, 200, True) for (i, j) in elves] + [
+            (i, j, 200, False) for (i, j) in goblins
+        ]
+        units, combat_round = simulate(board, units, elf_attack_power=elf_attack_power)
+        n_surviving_elves = len([x for x in units if x[-1]])
+        # print(elf_attack_power, n_surviving_elves, len(elves))
+        if n_surviving_elves == len(elves):
+            return (elf_attack_power,) + summarize(units, board, combat_round)
 
 
 if __name__ == "__main__":
