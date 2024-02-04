@@ -1,0 +1,35 @@
+seti 1 3 5  # R5 = 1
+seti 1 1 3  # R3 = 1  # 2
+mulr 5 3 1  # R1 = R3 * R5
+eqrr 1 2 1  # if R1 == R2 then R0 += R5
+addr 1 4 4  #
+addi 4 1 4  #
+addr 5 0 0  #
+addi 3 1 3  # R3 += 1
+gtrr 3 2 1  # if R3 <= R2 then goto 3
+addr 4 1 4  #
+seti 2 8 4  #
+addi 5 1 5  # R5 += 1
+gtrr 5 2 1  # if R5 <= R2 goto 2
+addr 1 4 4  #
+seti 1 3 4  #
+mulr 4 4 4  # end
+
+
+
+seti 1 3 5  # R5 = 1
+# 2
+seti 1 1 3  # R3 = 1 
+# 3
+eqrr 1 2 1  # if R3 * R5 != R2 then R0 += R5
+addi 3 1 3  # R3 += 1
+gtrr 3 2 1  # if R3 <= R2 then goto 3
+addi 5 1 5  # R5 += 1
+gtrr 5 2 1  # if R5 <= R2 goto 2
+mulr 4 4 4  # end
+
+
+
+1 10551386 2 5275693
+
+
