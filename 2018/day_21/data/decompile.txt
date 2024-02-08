@@ -1,0 +1,30 @@
+bani 3 456 3        # R3 = R3 & 456 => R2 = 72
+eqri 3 72 3         # R3 = R3 == 72
+addr 3 4 4          # if R3 != 72 loop forever
+seti 0 0 4          #
+seti 0 5 3          # R3 = 0
+bori 3 65536 5      # R5 = R3 | 65536  -- 65536  # 6
+seti 5557974 2 3    # R3 = 5557974     
+bani 5 255 2        # R2 = R5 & 255   # 8
+addr 3 2 3          # R3 = R3 + R2     
+bani 3 16777215 3   # R3 = R3 & 16777215 
+muli 3 65899 3      # R3 *= 65899 
+bani 3 16777215 3   # R3 = R3 & 16777215 
+gtir 256 5 2        # If R5 <= 256
+addr 2 4 4          #  Jump 28
+addi 4 1 4          # 
+seti 27 9 4         # 
+seti 0 0 2          # R2 = 0
+addi 2 1 1          # R1 = R2 + 1 # 18
+muli 1 256 1        # R1 *= 256
+gtrr 1 5 1          # If R1 > R5  # R5 = (R5 // 256) | 65536
+addr 1 4 4          #   R5 = R2
+addi 4 1 4          #   Jump 8
+seti 25 4 4         # Else
+addi 2 1 2          #   R2 += 1
+seti 17 6 4         #   Jump 18
+setr 2 2 5          # 
+seti 7 1 4          # 
+eqrr 3 0 2          # if (R3 == R0)
+addr 2 4 4          #   END
+seti 5 7 4          # else: Jump 6
