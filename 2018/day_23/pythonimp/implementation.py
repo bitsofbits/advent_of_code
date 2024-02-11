@@ -2,6 +2,9 @@ import math
 from collections import Counter, defaultdict
 from functools import cache
 from itertools import combinations, permutations
+from math import inf
+
+import numpy as np
 
 
 def sign(x):
@@ -56,23 +59,30 @@ def dot(A, B):
     return sum(a * b for (a, b) in zip(A, B))
 
 
+def normal_from_index(i):
+    x = [1, -1][(i & 4) > 0]
+    y = [1, -1][(i & 2) > 0]
+    z = [1, -1][(i & 1) > 0]
+    return (x, y, z)
+
+
 @cache
 def find_bounds(nanobot):
     # Convert nanobot range to its 8 bounding planes
     # Specify each plane by `p`, its z_intercept
-    nanobot_location, signal_radius = nanobot
-    x0, y0, z0 = nanobot_location
+    P0, radius = nanobot
+    x0, y0, z0 = P0
     planes = []
-    for x_sign in (1, -1):
-        for y_sign in (1, -1):
-            for z_sign in (1, -1):
-                z1 = z0 + z_sign * signal_radius
-                N = (x_sign, y_sign, z_sign)
-                P0 = (x0, y0, z1)
-                # P = (x, y, z)
-                # N•P - N•P0 = 0 => N•P = N.P0 = N•(0, 0, z_intercept)
-                z_intercept = z_sign * dot(N, P0)
-                planes.append(z_intercept)
+    for i in range(8):
+        N = normal_from_index(i)
+        Nz = N[-1]
+        z1 = z0 + Nz * radius
+        P0 = (x0, y0, z1)
+        # P = (x, y, z)
+        # N•P - N•P0 = 0 => N•P = N.P0 = N•(0, 0, z_intercept)
+        # Nz (N•P0) = Nz*Nz*z_intercept = z_intercept
+        z_intercept = Nz * dot(N, P0)
+        planes.append(z_intercept)
     return planes
 
 
@@ -91,33 +101,126 @@ def find_candidates(pairwise):
     for target_count in reversed(range(1, min_count + 1)):
         for others in pairwise:
             n = len(others)
-            if n == target_count:
+            if n == target_count <= n <= min_count:
                 base_indices = tuple(sorted(others))
-                if base_indices in tried:
-                    continue
                 for indices in combinations(base_indices, target_count):
                     if indices not in tried:
                         tried.add(indices)
                         yield indices
 
 
+def find_a_corner(bounds, axis=0, end=0, which=0):
+    assert 0 <= axis < 3
+    assert end in (0, 1)
+    values = [[0, 1], [0, 2], [0, 4]]
+    values[axis] = [values[axis][end]]
+    indices = []
+    for a in values[0]:
+        for b in values[1]:
+            for c in values[2]:
+                indices.append(a + b + c)
+    i0, i1, i2 = (indices[(i + which) % 4] for i in range(3))
+    n0, n1, n2 = (normal_from_index(i) for i in (i0, i1, i2))
+    A = np.stack([n0, n1, n2], axis=0)
+    V = np.array([bounds[i] * A[j, 2] for (j, i) in enumerate((i0, i1, i2))])
+    return tuple(np.linalg.solve(A, V))
+
+
+def is_inside(bounds, P):
+    for i in range(8):
+        N = normal_from_index(i)
+        Nz = N[-1]
+        # N•P = Nz B_i on plane
+        # N•P - Nz B_i > 0 outside of plane
+        if dot(N, P) > Nz * bounds[i]:
+            # print(dot(N, P), Nz * bounds[i] > 0, bounds)
+            return False
+    return True
+
+
+def corners_are_inside(bounds):
+    all_corners = []
+    for axis in range(3):
+        for end in (0, 1):
+            for which in range(4):
+                corner = find_a_corner(bounds, axis, end)
+                all_corners.append(corner)
+                if is_inside(bounds, corner):
+                    return True
+    return False
+
+
+def well_formed(bounds):
+    for axis in (0, 1, 2):
+        for end in (0, 1):
+            for which in (0, 1, 2, 3):
+                corner = find_a_corner(bounds, axis, end, which)
+                if is_inside(bounds, corner):
+                    return True
+    return False
+
+
 def distance_from_bounds(bounds):
-    distances = []
-    for i in range(4):
-        z_a = bounds[i]
-        z_b = bounds[7 - i]
-        if z_a * z_b <= 0:
-            distances.append(0)
-        elif z_a < 0:
-            distances.append(max(z_a, z_b))
-        else:
-            distances.append(min(z_a, z_b))
-    index = max(range(4), key=lambda i: abs(distances[i]))
-    nominal_distance = abs(distances[index])
+    # There is a clever way to compute distances that isn't quite
+    # right since the shapes are weird. So just build a bounding box
+    # from all the corners and check what is inside
+
+    mins = [inf] * 3
+    maxs = [-inf] * 3
+    for axis in range(3):
+        for end in (0, 1):
+            for which in range(4):
+                corner = find_a_corner(bounds, axis, end, which)
+                mins = [min(a, b) for (a, b) in zip(corner, mins)]
+                maxs = [max(a, b) for (a, b) in zip(corner, mins)]
+
+    valid_distances = set()
+    for x in range(math.floor(mins[0]), math.ceil(maxs[0] + 1)):
+        for y in range(math.floor(mins[1]), math.ceil(maxs[1] + 1)):
+            for z in range(math.floor(mins[2]), math.ceil(maxs[2] + 1)):
+                P = (x, y, z)
+                if is_inside(bounds, P):
+                    valid_distances.add(sum(abs(v) for v in P))
+
+    if not valid_distances:
+        return None
+
+    return min(valid_distances)
+
+    # return nominal_distance
     # The nominal distance can be off by up to 2(?) due
     # to (something, something), so check somehow
 
-    return nominal_distance
+    # distances = []
+    # all_corners = []
+    # for axis in range(3):
+    #     for end in (0, 1):
+    #         # for which in range(4):
+    #         corner = find_a_corner(bounds, axis, end)
+    #         corner_distance = sum(abs(x) for x in corner)
+    #         all_corners.append(corner)
+    #         if is_inside(bounds, corner) and corner_distance == nominal_distance:
+    #             return corner_distance
+
+    # assert all(x % 1 == 0 for x in bounds)
+
+    # # print("corner not inside, trying nearby")
+    # delta = 10
+    # distances = []
+    # for corner in all_corners:
+    #     x0, y0, z0 = (int(x) for x in corner)
+    #     # print(corner, x0, y0, z0)
+    #     for dx in range(-delta, delta + 1):
+    #         x = x0 + dx
+    #         for dy in range(-delta, delta + 1):
+    #             y = y0 + dy
+    #             for dz in range(-delta, delta + 1):
+    #                 z = z0 + dz
+    #                 if inside(bounds, (x, y, z)):
+    #                     distances.append(sum(abs(v) for v in (x, y, z)))
+    # if distances:
+    #     return min(distances)
+    return None
 
 
 def part_2(text):
@@ -167,6 +270,8 @@ def part_2(text):
             # there is no intersection
             if merged[i] < merged[7 - i]:
                 return None
+        # if not well_formed(merged):
+        #     return None
         return merged
 
     base_indices = list(range(len(nanobots)))
@@ -186,10 +291,13 @@ def part_2(text):
             break
         bounds = intersection(indices)
         if bounds is not None:
-            key = (len(indices), -distance_from_bounds(bounds))
-            if best is None:
-                best = key
-            best = max(key, best)
+            distance = distance_from_bounds(bounds)
+            # print(len(indices), distance, bounds)
+            if distance is not None:
+                key = (len(indices), -distance)
+                if best is None:
+                    best = key
+                best = max(key, best)
     return -best[1]
 
 
