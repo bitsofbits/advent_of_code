@@ -138,28 +138,6 @@ def is_inside(bounds, P):
     return True
 
 
-def corners_are_inside(bounds):
-    all_corners = []
-    for axis in range(3):
-        for end in (0, 1):
-            for which in range(4):
-                corner = find_a_corner(bounds, axis, end)
-                all_corners.append(corner)
-                if is_inside(bounds, corner):
-                    return True
-    return False
-
-
-def well_formed(bounds):
-    for axis in (0, 1, 2):
-        for end in (0, 1):
-            for which in (0, 1, 2, 3):
-                corner = find_a_corner(bounds, axis, end, which)
-                if is_inside(bounds, corner):
-                    return True
-    return False
-
-
 def distance_from_bounds(bounds):
     # There is a clever way to compute distances that isn't quite
     # right since the shapes are weird. So just build a bounding box
@@ -181,46 +159,9 @@ def distance_from_bounds(bounds):
                 P = (x, y, z)
                 if is_inside(bounds, P):
                     valid_distances.add(sum(abs(v) for v in P))
-
     if not valid_distances:
         return None
-
     return min(valid_distances)
-
-    # return nominal_distance
-    # The nominal distance can be off by up to 2(?) due
-    # to (something, something), so check somehow
-
-    # distances = []
-    # all_corners = []
-    # for axis in range(3):
-    #     for end in (0, 1):
-    #         # for which in range(4):
-    #         corner = find_a_corner(bounds, axis, end)
-    #         corner_distance = sum(abs(x) for x in corner)
-    #         all_corners.append(corner)
-    #         if is_inside(bounds, corner) and corner_distance == nominal_distance:
-    #             return corner_distance
-
-    # assert all(x % 1 == 0 for x in bounds)
-
-    # # print("corner not inside, trying nearby")
-    # delta = 10
-    # distances = []
-    # for corner in all_corners:
-    #     x0, y0, z0 = (int(x) for x in corner)
-    #     # print(corner, x0, y0, z0)
-    #     for dx in range(-delta, delta + 1):
-    #         x = x0 + dx
-    #         for dy in range(-delta, delta + 1):
-    #             y = y0 + dy
-    #             for dz in range(-delta, delta + 1):
-    #                 z = z0 + dz
-    #                 if inside(bounds, (x, y, z)):
-    #                     distances.append(sum(abs(v) for v in (x, y, z)))
-    # if distances:
-    #     return min(distances)
-    return None
 
 
 def part_2(text):
@@ -228,16 +169,7 @@ def part_2(text):
     >>> part_2(EXAMPLE2_TEXT)
     36
 
-    49355796 is too low
-    100985897 is too low :-(
-    100985899 is too high! (arbitrary)
-
-    100985898 -- Suspicion is that distance_from_bounds is not quite right,
-              -- and in some cases there may be no point in the region on
-              -- the intersection or maybe it's there, but not on the edge and is
-              -- 1 or 2 units away
-              -- fix would be to find intersection 8 corners. build a bounding box and then just compute
-              -- the interior
+    100985898
     """
     nanobots = parse(text)
 
@@ -270,8 +202,6 @@ def part_2(text):
             # there is no intersection
             if merged[i] < merged[7 - i]:
                 return None
-        # if not well_formed(merged):
-        #     return None
         return merged
 
     base_indices = list(range(len(nanobots)))
