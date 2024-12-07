@@ -1,7 +1,21 @@
-&rs ∞ &fo "../data/example.txt" # Read file
-°□(⊜□ ⊸≠@\n)                    # Split rows, results are boxed
-≡(□ ⋕⊜□⊸≠@ °□)                  # Split and parse the rows
-≡(□-⇌↘1⇌°□ :↘1°□) .             # Compute deltas
-IsOk ← ≡(/× (×≤3:⊸≥1 °□))       # Is this row OK
-↥ IsOk ¯ ⟜IsOk                  # Is OK doesn't take into account +-
-/+                              # Count OK rows
+# Parse
+&rs ∞ &fo "../data/data.txt"
+°□(⊜□ ⊸≠@\n)
+⍚(⋕⊜□⊸≠@ )
+. # Make a copy of parsed data on stack for Part 2
+
+# Part 2
+ComputeDelta ← - ⍜⇌(↘1) ⟜(↘1)
+BaseOk       ← (/× (×≤3⟜(≥1) ComputeDelta))
+IsOk         ← ≡◇BaseOk
+/+ ↥ IsOk ¯ ⟜IsOk
+
+# Part 2
+:
+IsOkDrop ← ≡◇(
+  /↥ [
+    ⍥◌3
+    ⍢(⊙(+1)⊙⟜(:BaseOk↻¯:↘1:⟜↻:,)|◡<)
+  ] : 0⧻.)
+↥ IsOkDrop¯ ⟜IsOkDrop
+/+
