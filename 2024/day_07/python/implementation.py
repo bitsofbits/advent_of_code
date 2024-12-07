@@ -70,6 +70,33 @@ def possible_answers_2(values, max_value):
     return result
 
 
+
+def possible_answers_2s(values, target):
+    stack = [(values[0], 0)]
+    # seen = set(stack)
+    last = len(values) - 1
+    while stack:
+        v, i = stack.pop()
+        if i == last:
+            if v == target:
+                return True
+            else:
+                continue
+        i += 1
+        x = values[i]
+        y = v + x
+        if y <= target:
+            stack.append((y, i))
+        y = v * x
+        if y <= target:
+            stack.append((y, i))
+        digits = int(log10(x)) + 1
+        y = v * 10 ** digits + x
+        if y <= target:
+            stack.append((y, i))
+    return False
+
+
 def part_2(text):
     """
     >>> part_2(EXAMPLE_TEXT)
@@ -79,8 +106,7 @@ def part_2(text):
     assert not has_zero_values(equations)
     total = 0
     for answer, values in equations:
-        possible = possible_answers_2(values, answer)
-        if answer in possible:
+        if possible_answers_2s(values, answer):
             total += answer
     return total
 
