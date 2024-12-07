@@ -57,8 +57,8 @@ def possible_answers_2(values, max_value):
     result = set()
     v1 = values[-1]
     for x in initial:
-        # y = v1 + x
-        if y := (v1 + x) <= max_value:
+        y = v1 + x
+        if y <= max_value:
             result.add(y)
         y = v1 * x
         if y <= max_value:
