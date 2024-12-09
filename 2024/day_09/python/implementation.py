@@ -72,16 +72,17 @@ def part_2(text):
     2858
     """
     sparse_map = parse(text)
+    gap_map = build_gap_map(sparse_map)
 
     for i in reversed(range(len(sparse_map))):
         block_loc, block_size = sparse_map[i]
-        gap_map = build_gap_map(sparse_map)
         for j, (gap_loc, gap_size) in enumerate(gap_map):
             if gap_loc > block_loc:
                 break
             if gap_size < block_size:
                 continue
             sparse_map[i] = (gap_loc, block_size)
+            gap_map[j] = (gap_loc + block_size, gap_size - block_size)
             break
     return checksum(densify(sparse_map))
 
