@@ -80,32 +80,31 @@ def possible_answers_2s(values, target):
     stack = [(values[0], 0)]
     # seen = set(stack)
     last = len(values) - 1
-    min_extra = []
-    for i in range(len(values)):
-        min_extra.append(min(sum(values[i + 1:]), prod(values[i + 1:])))
+    scales = {}
+    for x in values:
+        scale = 1
+        while scale <= x:
+            scale *= 10
+        scales[x] = scale
 
     while stack:
         v, i = stack.pop()
-        if i == last:
-            if v == target:
-                return True
-            else:
-                continue
         i += 1
         x = values[i]
-        y = v + x
-        if y <= target:
-            stack.append((y, i))
-        y = v * x
-        if y <= target:
-            stack.append((y, i))
-        # digits = int(log10(x)) + 1
-        scale = 1
-        while scale <= x:
-            scale *= 10 #
-        y = v * scale + x
-        if y <= target:
-            stack.append((y, i))
+        if i == last:
+            if v * x == target:
+                return True
+            if v + x == target:
+                return True
+            if v * scales[x] + x == target:
+                return True     
+        else:
+            if (y := v + x) <= target:
+                stack.append((y, i))
+            if (y := v * x) <= target:
+                stack.append((y, i))
+            if (y := v * scales[x] + x) <= target:
+                stack.append((y, i))
     return False
 
 
