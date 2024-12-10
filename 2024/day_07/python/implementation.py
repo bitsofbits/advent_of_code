@@ -70,11 +70,20 @@ def possible_answers_2(values, max_value):
     return result
 
 
+def prod(items):
+    p = 1
+    for x in items:
+        p *= x
+    return p
 
 def possible_answers_2s(values, target):
     stack = [(values[0], 0)]
     # seen = set(stack)
     last = len(values) - 1
+    min_extra = []
+    for i in range(len(values)):
+        min_extra.append(min(sum(values[i + 1:]), prod(values[i + 1:])))
+
     while stack:
         v, i = stack.pop()
         if i == last:
@@ -90,8 +99,11 @@ def possible_answers_2s(values, target):
         y = v * x
         if y <= target:
             stack.append((y, i))
-        digits = int(log10(x)) + 1
-        y = v * 10 ** digits + x
+        # digits = int(log10(x)) + 1
+        scale = 1
+        while scale <= x:
+            scale *= 10 #
+        y = v * scale + x
         if y <= target:
             stack.append((y, i))
     return False
