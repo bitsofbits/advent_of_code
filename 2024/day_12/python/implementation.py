@@ -76,14 +76,14 @@ def count_sides(region, neighbors):
         neighbor_map[a].add(b)
     boundaries = [x for x in region if len(neighbor_map.get(x, ())) < 4]
     seen = set()
-    edges = 0
+    sides = 0
     for d in '>v<^':
         for x in boundaries:
             if (d, x) in seen:
                 continue
             seen.add((d, x))
             if is_outer_edge(x, d, neighbors):
-                edges += 1
+                sides += 1
                 # This is an outer edge so follow both directions till it stops
                 di, dj = directions[d]
                 i, j = x
@@ -104,8 +104,7 @@ def count_sides(region, neighbors):
                         seen.add((d, x1))
                     else:
                         break
-    return edges
-
+    return sides
 
 
 def part_2(text):
