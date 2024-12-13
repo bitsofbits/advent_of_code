@@ -1,9 +1,5 @@
 import re
 from functools import cache
-from math import lcm
-from itertools import count
-
-import numpy as np  # TODO: by hand
 
 pattern_text = r"""Button A: X\+(\d+), Y\+(\d+)
 Button B: X\+(\d+), Y\+(\d+)
@@ -55,20 +51,39 @@ def part_1_orig(text):
         cost += deltas.get((0, 0), 0)
     return cost
 
+def det(x):
+    # Only valid for 2x2 case
+    return x[0][0] * x[1][1] - x[0][1] * x[1][0] 
+
+def solve(A, v):
+    # Only valid for 2x2 case
+    d = det(A)
+    [[a11, a12], [a21, a22]] = A
+    [v1, v2] = v
+    # Solve using Cramer's rule
+    x1 = det([[v1, a12], [v2, a22]]) / d
+    x2 = det([[a11, v1], [a21, v2]]) / d
+    return x1, x2
+
+def mult(A, x):
+    # only valid for 2x2 matrices
+    [[a11, a12], [a21, a22]] = A
+    [x1, x2] = x
+    return [a11 * x1 + a12 * x2, a21 * x1 + a22 * x2]
 
 def solve_machine(machine):
     (di_a, dj_a), (di_b, dj_b), (i, j) = machine
 
-    A = np.array([[di_a, di_b], [dj_a, dj_b]])
+    A = [[di_a, di_b], [dj_a, dj_b]]
     v = [i, j]
 
-    a, b = (int(round(x)) for x in np.linalg.solve(A, v))
-
-    if np.linalg.det(A) == 0:
+    a, b = (int(round(x)) for x in solve(A, v))
+    if det(A) == 0:
         # Could be handled but turns out we don't need to
         raise ValueError("degenerate")
 
-    if np.all(A @ np.array([a, b]) == [v]):
+    import numpy as np
+    if mult(A, [a, b]) == v:
         return 3 * a + b
     return None
 
