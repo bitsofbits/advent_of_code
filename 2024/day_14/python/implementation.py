@@ -83,9 +83,11 @@ def part_1(text, board_size=(103, 101), debug=False):
 
 
 def variance(x):
-    mean = sum(x) / len(x)
-    return sum((v - mean) ** 2 for v in x) / len(x)
-
+    sum_x = sum_x2 = 0
+    for v in x:
+        sum_x += v
+        sum_x2 += v ** 2
+    return (sum_x2 / len(x) - (sum_x / len(x)) ** 2) 
 
 def part_2(text, board_size=(103, 101)):
     """
