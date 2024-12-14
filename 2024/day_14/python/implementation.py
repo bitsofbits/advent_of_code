@@ -45,10 +45,10 @@ def parse(text):
     return robots
 
 
-def move(robot, board_size):
+def move(robot, board_size, n=1):
     (p0, p1), (v0, v1) = robot
-    p0 = (p0 + v0) % board_size[0]
-    p1 = (p1 + v1) % board_size[1]
+    p0 = (p0 + n * v0) % board_size[0]
+    p1 = (p1 + n * v1) % board_size[1]
     return (p0, p1), (v0, v1)
 
 
@@ -67,9 +67,10 @@ def part_1(text, board_size=(103, 101), debug=False):
     228153786 too low
     """
     robots = parse(text)
-    for _ in range(100):
-        for i, x in enumerate(robots):
-            robots[i] = move(x, board_size)
+
+    for i, x in enumerate(robots):
+        robots[i] = move(x, board_size, 100)
+        
     if debug:
         print(render(robots, board_size))
 
@@ -77,8 +78,8 @@ def part_1(text, board_size=(103, 101), debug=False):
     di, dj = (x // 2 for x in board_size)
     for i0, i1 in [(0, di), (di + 1, board_size[0])]:
         for j0, j1 in [(0, dj), (dj + 1, board_size[1])]:
-            count = sum(1 for ((i, j), _) in robots if i0 <= i < i1 and j0 <= j < j1)
-            score *= count
+            cnt = sum(1 for ((i, j), _) in robots if i0 <= i < i1 and j0 <= j < j1)
+            score *= cnt
     return score
 
 
@@ -86,8 +87,9 @@ def variance(x):
     sum_x = sum_x2 = 0
     for v in x:
         sum_x += v
-        sum_x2 += v ** 2
-    return (sum_x2 / len(x) - (sum_x / len(x)) ** 2) 
+        sum_x2 += v**2
+    return sum_x2 / len(x) - (sum_x / len(x)) ** 2
+
 
 def part_2(text, board_size=(103, 101)):
     """
@@ -114,7 +116,7 @@ def part_2(text, board_size=(103, 101)):
                 min_i_variance = v
                 compact_i = n
 
-        if n < j_period:            
+        if n < j_period:
             v = variance([j for ((i, j), _) in robots])
             if v < min_j_variance:
                 min_j_variance = v
@@ -128,18 +130,11 @@ def part_2(text, board_size=(103, 101)):
             return n
 
 
-def display_tree(text, board_size=(103, 101)):
+def display_tree(text, n=7569, board_size=(103, 101)):
     robots = parse(text)
-    for n in count():
-        if n % 101 == 95 and n % 103 == 50:
-            print(
-                render(
-                    robots, board_size, add_bar=False, background=".", foreground="*"
-                )
-            )
-            break
-        for i, x in enumerate(robots):
-            robots[i] = move(x, board_size)
+    for i, x in enumerate(robots):
+        robots[i] = move(x, board_size, n)
+    print(render(robots, board_size, add_bar=False, background=".", foreground="*"))
 
 
 if __name__ == "__main__":
