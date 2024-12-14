@@ -93,51 +93,35 @@ def part_2(text, board_size=(103, 101)):
     """
     Procedure:
     1. Note that periodically pattern becomes compact
-       horizontally or vertically
-    2. Determine that the vertical / horizontal compactness
-       first occurs at 50 / 95 steps
-    3. Determine that period of vertical / horizontal
-       compactness is 103 / 101
-    4. Both compact when i % 101 == 95 and i % 103 == 50
+       vertically horizontally. We know these periods
+       are 103 and 101 (board size) because the board
+       sizes are prime
+    2. Determine when vertical / horizontal compactness occurs
+    3. Both compact when n % i_period == compact_i and n % j_period == compact_j
 
 
     """
     robots = parse(text)
-    seen_i = set()
-    seen_j = set()
-    i_period = j_period = None
-    states = []
+    i_period, j_period = board_size
+    max_period = max(board_size)
 
-    for n in range(1000):
-        states.append(robots.copy())
-        r_i = frozenset((i, vi) for ((i, j), (vi, vj)) in robots)
-        r_j = frozenset((j, vj) for ((i, j), (vi, vj)) in robots)
-        if i_period is None and r_i in seen_i:
-            i_period = n
-        if j_period is None and r_j in seen_j:
-            j_period = n
-        seen_i.add(r_i)
-        seen_j.add(r_j)
-        if i_period and j_period:
-            break
+    min_i_variance = min_j_variance = inf
+    compact_i = compact_j = -1
+    for n in range(max_period):
+        if n < i_period:
+            v = variance([i for ((i, j), _) in robots])
+            if v < min_i_variance:
+                min_i_variance = v
+                compact_i = n
+
+        if n < j_period:            
+            v = variance([j for ((i, j), _) in robots])
+            if v < min_j_variance:
+                min_j_variance = v
+                compact_j = n
+
         for i, x in enumerate(robots):
             robots[i] = move(x, board_size)
-
-    min_variance = inf
-    compact_i = -1
-    for n, robots in enumerate(states[:i_period]):
-        v = variance([i for ((i, j), _) in robots])
-        if v < min_variance:
-            min_variance = v
-            compact_i = n
-
-    min_variance = inf
-    compact_j = -1
-    for n, robots in enumerate(states[:j_period]):
-        v = variance([j for ((i, j), _) in robots])
-        if v < min_variance:
-            min_variance = v
-            compact_j = n
 
     for n in range(i_period * j_period):
         if n % i_period == compact_i and n % j_period == compact_j:
