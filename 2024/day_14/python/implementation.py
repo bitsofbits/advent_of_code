@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 from itertools import count
 import time
-
+from math import inf
 
 def render(robots, board_size, add_bar=True, background=".", foreground=None):
     counts = defaultdict(int)
@@ -92,16 +92,21 @@ def is_symmetric(robots, board_size):
     return sorted(locations) == sorted(mirror_locations)
 
 
-# 50 i, 95 j
+# # 50 i, 95 j
 
-for i in range(101 * 103):
-    if i % 101 == 95 and i % 103 == 50:
-        print(i)
+# for i in range(101 * 103):
+#     if i % 101 == 95 and i % 103 == 50:
+#         print(i)
+
+
+def variance(x):
+    mean = sum(x) / len(x)
+    return sum((v - mean) ** 2 for v in x) / len(x)
 
 
 def part_2(text, board_size=(103, 101)):
     """
-    Procedure: 
+    Procedure:
     1. Note that periodically pattern becomes compact
        horizontally or vertically
     2. Determine that the vertical / horizontal compactness
@@ -113,35 +118,56 @@ def part_2(text, board_size=(103, 101)):
 
     """
     robots = parse(text)
-    # seen_i = set()
-    # seen_j = set()
-    # Repeats after 10403
-    # i pattern repeats after 103
-    # j pattern repeats after 101
-    # i pattern compact at 50
-    # j pattern repeats at 95
+    seen_i = set()
+    seen_j = set()
+    i_period = j_period = None
+    states = []
+
+    for n in range(1000):
+        states.append(robots.copy())
+        r_i = frozenset((i, vi) for ((i, j), (vi, vj)) in robots)
+        r_j = frozenset((j, vj) for ((i, j), (vi, vj)) in robots)
+        if i_period is None and r_i in seen_i:
+            i_period = n
+        if j_period  is None and r_j in seen_j:
+            j_period = n
+        seen_i.add(r_i)
+        seen_j.add(r_j)
+        if i_period and j_period:
+            break
+        for i, x in enumerate(robots):
+            robots[i] = move(x, board_size)
+
+    min_variance = inf
+    compact_i = -1
+    for n, robots in enumerate(states[:i_period]):
+        v = variance([i for ((i, j), _) in robots])
+        if v < min_variance:
+            min_variance = v
+            compact_i = n
+
+    min_variance = inf
+    compact_j = -1
+    for n, robots in enumerate(states[:j_period]):
+        v = variance([j for ((i, j), _) in robots])
+        if v < min_variance:
+            min_variance = v
+            compact_j = n
+
+    for n in range(i_period * j_period):
+        if n % i_period == compact_i and n % j_period == compact_j:
+            return n
 
 
-    for i in range(101 * 103):
-        # r_i = frozenset((i, vi) for ((i, j),
-        #     (vi, vj)) in robots)
-        # r_j = frozenset((j, vj) for ((i, j),
-        #     (vi, vj)) in robots)
-        # if r_i in seen_i:
-        #     print("i repeats at", i)
-        #     break
-        # if r_j in seen_j:
-        #     print("j repeats at", i)
-        # seen_i.add(r_i)
-        # seen_j.add(r_j)
-        # if frozenset(robots) in seen:
-        #     print(i)
-        #     break
-        # seen.add(frozenset(robots))
-        if i % 101 == 95 and i % 103 == 50:
-            print("\033c", end="")
-            print(i)
-            print(render(robots, board_size, add_bar=False, background=" ", foreground="*"))
+def display_tree(text, board_size=(103, 101)):
+    robots = parse(text)
+    for n in count():
+        if n % 101 == 95 and n % 103 == 50:
+            print(
+                render(
+                    robots, board_size, add_bar=False, background=".", foreground="*"
+                )
+            )
             break
         for i, x in enumerate(robots):
             robots[i] = move(x, board_size)
@@ -154,5 +180,9 @@ if __name__ == "__main__":
     data_dir = Path(__file__).parents[1] / "data"
     with open(data_dir / "example.txt") as f:
         EXAMPLE_TEXT = f.read()
+    with open(data_dir / "data.txt") as f:
+        DATA_TEXT = f.read()
 
     doctest.testmod()
+
+    display_tree(DATA_TEXT)
