@@ -1,8 +1,8 @@
 import re
 from collections import defaultdict
 from itertools import count
-import time
 from math import inf
+
 
 def render(robots, board_size, add_bar=True, background=".", foreground=None):
     counts = defaultdict(int)
@@ -82,23 +82,6 @@ def part_1(text, board_size=(103, 101), debug=False):
     return score
 
 
-def is_symmetric(robots, board_size):
-    _, width = board_size
-    max_j = width - 1
-    locations = [p for (p, _) in robots]
-    mirror_locations = []
-    for i, j in locations:
-        mirror_locations.append((i, max_j - j))
-    return sorted(locations) == sorted(mirror_locations)
-
-
-# # 50 i, 95 j
-
-# for i in range(101 * 103):
-#     if i % 101 == 95 and i % 103 == 50:
-#         print(i)
-
-
 def variance(x):
     mean = sum(x) / len(x)
     return sum((v - mean) ** 2 for v in x) / len(x)
@@ -129,7 +112,7 @@ def part_2(text, board_size=(103, 101)):
         r_j = frozenset((j, vj) for ((i, j), (vi, vj)) in robots)
         if i_period is None and r_i in seen_i:
             i_period = n
-        if j_period  is None and r_j in seen_j:
+        if j_period is None and r_j in seen_j:
             j_period = n
         seen_i.add(r_i)
         seen_j.add(r_j)
