@@ -1,4 +1,4 @@
-from itertools import count
+from functools import cache
 
 def parse(text):
     """
@@ -119,30 +119,22 @@ def part_1(text, A=None):
     return ','.join(output)
 
 
-# def fast(i):
-#     A = i
-#     B = C = 0
-#     while True:
-#         # if B > 0 or C > 0:
-#         #     print(i, A, B, C)
-#         B = A % 8
-#         B = B ^ 5
-#         C = A >> B
-#         B = B ^ 6
-#         A = A >> 3
-#         B = B ^ C
-#         yield B % 8
-#         if A == 0:
-#             break
+@cache
+def fast_step(A):
+    B = A % 8
+    B = B ^ 5
+    C = A >> B
+    B = B ^ 6
+    B = B ^ C
+    return B % 8
 
 
 
-def part_2(text, shift=3):
+
+def part_2(text):
     """
-    # >>> part_2(DATA_TEXT)
-
-    >>> part_2(EXAMPLE_3_TEXT, shift=1)
-    117440
+    >>> part_2(DATA_TEXT)
+    106086382266778
 
     WHILE TRUE:
         BST REG:A  # B = A % 8
@@ -155,43 +147,36 @@ def part_2(text, shift=3):
         JNZ 0      # IF A == 0: break
     """
 
-    registers, program = parse(text)
-    computer = Computer(registers)
+    _, program = parse(text)
+    assert program == (2,4,1,5,7,5,1,6,0,3,4,2,5,5,3,0)
 
     # Find possible values for first 10^H^H bits
     # I thought this should be 10, but needs 18 to work?
     base_shift = 18
     states = set()
     for i in range(2 ** base_shift):
-        computer.registers = registers.copy()
-        computer.registers['A'] = i
-        computer.registers['A0'] = i
-        value = next(computer.run(program))
+        value = fast_step(i)
         if value == program[0]:
-            states.add(frozenset(computer.registers.items()))
+            states.add((i, i >> 3))
 
     for n, op in enumerate(program[1:]):
         next_states = set()
-        for i in range(2 ** shift):
-            for state in states:
-                state = dict(state)
-                assert i << (base_shift - shift) & state['A'] == 0
-                state['A'] += i << (base_shift - shift)
-                state['A0'] += i << (base_shift + n * shift)
-                computer.registers = state
-                value = next(computer.run(program))
-                if value == op:
-                    next_states.add(frozenset(computer.registers.items()))
+        for i in range(2 ** 3):
+            for A0, A in states:
+                A += i << (base_shift - 3)
+                value = fast_step(A)
+                if value == op:                
+                    A0 += i << (base_shift + 3 * n)
+                    A >>= 3
+                    next_states.add((A0, A))
         states = next_states
 
     final_states = set()
-    for state in states:
-        registers = dict(state)
-        if registers['A'] == 0:
-            final_states.add(state)
-        value = next(computer.run(program))
+    for A0, A in states:
+        if A == 0:
+            final_states.add((A0, A))
 
-    return min(dict(x)["A0"] for x in final_states)
+    return min(A0 for (A0, A) in final_states)
 
 
 
