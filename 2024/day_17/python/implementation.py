@@ -150,9 +150,8 @@ def part_2(text):
     _, program = parse(text)
     assert program == (2,4,1,5,7,5,1,6,0,3,4,2,5,5,3,0)
 
-    # Find possible values for first 10^H^H bits
-    # I thought this should be 10, but needs 18 to work?
-    base_shift = 18
+    # Find possible values for first 10
+    base_shift = 10
     states = set()
     for i in range(2 ** base_shift):
         value = fast_step(i)
