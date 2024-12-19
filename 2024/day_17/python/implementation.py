@@ -98,12 +98,20 @@ class Computer:
         return list(self.run(program))
 
 
-def part_1(text):
+def part_1(text, A=None):
     """
     >>> part_1(EXAMPLE_TEXT)
     '4,6,3,5,6,3,5,2,1,0'
+
+    >>> part_1(EXAMPLE_3_TEXT, A=117440)
+    '0,3,5,4,3,0'
+
+    >>> part_1(DATA_TEXT, A=106086382266778)
+    '2,4,1,5,7,5,1,6,0,3,4,2,5,5,3,0'
     """
     registers, program = parse(text)
+    if A is not None:
+        registers['A'] = A
     computer = Computer(registers)
     output = []
     for x in computer.run(program):
@@ -111,64 +119,29 @@ def part_1(text):
     return ','.join(output)
 
 
-def fast(i):
-    A = i
-    B = C = 0
-    while True:
-        # if B > 0 or C > 0:
-        #     print(i, A, B, C)
-        B = A % 8
-        B = B ^ 5
-        C = A >> B
-        B = B ^ 6
-        A = A >> 3
-        B = B ^ C
-        yield B % 8
-        if A == 0:
-            break
+# def fast(i):
+#     A = i
+#     B = C = 0
+#     while True:
+#         # if B > 0 or C > 0:
+#         #     print(i, A, B, C)
+#         B = A % 8
+#         B = B ^ 5
+#         C = A >> B
+#         B = B ^ 6
+#         A = A >> 3
+#         B = B ^ C
+#         yield B % 8
+#         if A == 0:
+#             break
 
 
 
-# def part_2(text):
-#     """
-#     >>> part_2(DATA_TEXT)
-#     117440
-
-#     WHILE TRUE:
-#         BST REG:A  # B = A % 8
-#         BXL 5      # B = B ^ 5 
-#         CDV REG:B  # C = A >> B
-#         BXL 6      # B = B ^ 6
-#         ADV REG:3  # A = A >> 3
-#         BXC 2      # B = B ^ C
-#         OUT REG:B  # OUTPUT B % 8
-#         JNZ 0      # IF A == 0: break
-
-#     WHILE TRUE:
-#         BST REG:A  # B = A % 8
-#         BXL 5      # B = B ^ 5 
-#         CDV REG:B  # C = A >> B
-#         ADV REG:3  # A = A >> 3
-#         OUT REG:B  # OUTPUT (B ^ C ^ 6) % 8
-#         JNZ 0      # IF A == 0: break
-#     """
-#     registers, program = parse(text)
-#     for i in count():
-#         if i % 1_000_000 == 0:
-#             print(i)
-#         try:
-#             for a, b in zip(program, fast(i), strict=True):
-#                 if a != b:
-#                     continue
-#             else:
-#                 return i
-#         except ValueError:
-#             pass
-
-
-def part_2(text):
+def part_2(text, shift=3):
     """
-    >>> part_2(DATA_TEXT)
+    # >>> part_2(DATA_TEXT)
+
+    >>> part_2(EXAMPLE_3_TEXT, shift=1)
     117440
 
     WHILE TRUE:
@@ -180,66 +153,45 @@ def part_2(text):
         BXC 2      # B = B ^ C
         OUT REG:B  # OUTPUT B % 8
         JNZ 0      # IF A == 0: break
-
-    WHILE TRUE:
-        BST REG:A  # B = A % 8
-        BXL 5      # B = B ^ 5 
-        CDV REG:B  # C = A >> B
-        ADV REG:3  # A = A >> 3
-        OUT REG:B  # OUTPUT (B ^ C ^ 6) % 8
-        JNZ 0      # IF A == 0: break
     """
 
     registers, program = parse(text)
     computer = Computer(registers)
-    table = {}
-    for i in range(8 * 8 * 128):
+
+    # Find possible values for first 10^H^H bits
+    # I thought this should be 10, but needs 18 to work?
+    base_shift = 18
+    states = set()
+    for i in range(2 ** base_shift):
         computer.registers = registers.copy()
         computer.registers['A'] = i
-        try:
-            [v] = computer.run_till_halt(program)
-        except ValueError:
-            continue
-        higher_order_bits = (i // 8) % 1024
-        key = (higher_order_bits, v)
-        lower_order_bits = i % 8
-        if key not in table:
-            table[key] = []
-        table[key].append(lower_order_bits)
+        computer.registers['A0'] = i
+        value = next(computer.run(program))
+        if value == program[0]:
+            states.add(frozenset(computer.registers.items()))
 
-    print(table)
-    # print([x for x in table if x[1] == 2])
+    for n, op in enumerate(program[1:]):
+        next_states = set()
+        for i in range(2 ** shift):
+            for state in states:
+                state = dict(state)
+                assert i << (base_shift - shift) & state['A'] == 0
+                state['A'] += i << (base_shift - shift)
+                state['A0'] += i << (base_shift + n * shift)
+                computer.registers = state
+                value = next(computer.run(program))
+                if value == op:
+                    next_states.add(frozenset(computer.registers.items()))
+        states = next_states
 
-    # higher_order_bits = 0 # only choice for output of 2
-    # for code in reversed(program):
-    #     key = (higher_order_bits % 1024, code)
-    #     print(key)
-    #     try:
-    #         bits = table[key]
-    #     except:
-    #         print("no key", bits)
-    #         break
-    #     higher_order_bits <<= 3
-    #     higher_order_bits += bits 
-    # print(bits)
+    final_states = set()
+    for state in states:
+        registers = dict(state)
+        if registers['A'] == 0:
+            final_states.add(state)
+        value = next(computer.run(program))
 
-    # for i, x in enumerate(table):
-    #     if x == program[0]:
-    #         print(i % 8)
-
-
-
-    # min_a = 1 << (3 * 15)
-    # max_a = 1 << (3 * 16) - 1
-
-    # for i in range(min_a, max_a):
-    #     for n, x in enumerate(fast(i)):
-    #         if n >= len(program) or x != program[n]:
-    #             break
-    #     else:
-    #         print(n)
-    #         if n + 1 == len(program):
-    #             return i
+    return min(dict(x)["A0"] for x in final_states)
 
 
 
@@ -253,6 +205,8 @@ if __name__ == "__main__":
         EXAMPLE_TEXT = f.read()
     with open(data_dir / "example_2.txt") as f:
         EXAMPLE_2_TEXT = f.read()
+    with open(data_dir / "example_3.txt") as f:
+        EXAMPLE_3_TEXT = f.read()
     with open(data_dir / "data.txt") as f:
         DATA_TEXT = f.read()
     doctest.testmod()
