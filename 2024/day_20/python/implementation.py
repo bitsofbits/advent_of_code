@@ -129,14 +129,15 @@ def part_2(text, return_detailed_counts=False, min_delta=100, max_cheat=20):
             for di in offsets:
                 abs_di = abs(di)
                 i1 = i0 + di
+                max_abs_dj = max_cheat - abs_di
                 for dj in offsets:
-                    distance = abs_di + abs(dj)
-                    if distance > max_cheat:
+                    abs_dj = abs(dj)
+                    if abs_dj > max_abs_dj:
                         continue
                     p1 = (i1, j0 + dj)
                     if p1 in walls:
                         continue
-                    t1 = time_from_end.get(p1, inf) + distance
+                    t1 = time_from_end.get(p1, inf) + abs_di + abs_dj
                     if t1 <= max_time_ij:
                         count += 1
 
