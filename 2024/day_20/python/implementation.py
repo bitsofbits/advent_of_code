@@ -44,10 +44,11 @@ def find_min_time_from(start, walls):
 def find_delta_times(text, min_delta, max_cheat):
     start, end, walls = parse(text)
     time_from_start = find_min_time_from(start, walls)
+    time_from_end = find_min_time_from(end, walls)
     time_without_cheating = time_from_start[end]
     delta_times = []
     max_time = time_without_cheating - min_delta
-    offsets = list(range(-max_cheat, max_cheat + 1))
+    offsets = [(x, abs(x)) for x in range(-max_cheat, max_cheat + 1)]
     for i0, j0 in time_from_start:
         p0 = (i0, j0)
         if p0 in walls:
@@ -56,20 +57,20 @@ def find_delta_times(text, min_delta, max_cheat):
         if t0 > max_time:
             continue
         max_time_ij = max_time - t0
-        for di in offsets:
-            abs_di = abs(di)
+        for di, abs_di in offsets:
             i1 = i0 + di
             max_abs_dj = max_cheat - abs_di
-            for dj in offsets:
-                abs_dj = abs(dj)
+            max_time_dj = max_time_ij - abs_di
+            for dj, abs_dj in offsets:
                 if abs_dj > max_abs_dj:
                     continue
                 p1 = (i1, j0 + dj)
-                if p1 not in time_from_start:
+                if p1 not in time_from_end:
                     continue
-                t1 = time_without_cheating - time_from_start[p1] + abs_di + abs_dj
-                if t1 <= max_time_ij:
-                    delta_times.append(time_without_cheating - (t1 + t0))
+                t1 = time_from_end[p1] + abs_dj
+                if t1 <= max_time_dj:
+                    t = t0 + t1 + abs_di
+                    delta_times.append(time_without_cheating - t)
     return delta_times
 
 
