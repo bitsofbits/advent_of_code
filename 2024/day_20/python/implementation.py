@@ -49,41 +49,39 @@ def find_delta_times(text, min_delta, max_cheat):
     delta_times = []
     max_time = time_without_cheating - min_delta
     offsets = [(x, abs(x)) for x in range(-max_cheat, max_cheat + 1)]
-    for i0, j0 in time_from_start:
-        p0 = (i0, j0)
-        if p0 in walls:
-            continue
-        t0 = time_from_start[p0]
+    for p0 in time_from_start:
+        t0 = time_from_start.get(p0, inf)
         if t0 > max_time:
             continue
-        max_time_ij = max_time - t0
+        (i0, j0) = p0
         for di, abs_di in offsets:
             i1 = i0 + di
             max_abs_dj = max_cheat - abs_di
-            max_time_dj = max_time_ij - abs_di
             for dj, abs_dj in offsets:
                 if abs_dj > max_abs_dj:
                     continue
-                p1 = (i1, j0 + dj)
-                if p1 not in time_from_end:
+                if (p1 := (i1, j0 + dj)) not in time_from_end:
                     continue
-                t1 = time_from_end[p1] + abs_dj
-                if t1 <= max_time_dj:
-                    t = t0 + t1 + abs_di
+                if (t := t0 + time_from_end[p1] + abs_dj + abs_di) <= max_time:
                     delta_times.append(time_without_cheating - t)
     return delta_times
 
 
-def part_1(text, return_detailed_counts=False, min_delta=100):
+def part_1(text, return_detailed_counts=False, min_delta=100, max_cheat=2):
     """
     >>> part_1(EXAMPLE_TEXT, True, 1)
     [(2, 14), (4, 14), (6, 2), (8, 4), (10, 2), (12, 3), (20, 1), (36, 1), (38, 1), (40, 1), (64, 1)]
 
-    >>> part_2(EXAMPLE_TEXT, min_delta=1, max_cheat=2)
+    >>> part_1(EXAMPLE_TEXT, min_delta=1, max_cheat=2)
     44
 
+    >>> part_1(EXAMPLE_TEXT, min_delta=50, max_cheat=20)
+    285
+
+    >>> part_1(PART3_TEXT, True, min_delta=30, max_cheat=20)
+    [(30, 66), (32, 167), (34, 19), (36, 39), (38, 2), (40, 6)]
     """
-    delta_times = find_delta_times(text, min_delta=min_delta, max_cheat=2)
+    delta_times = find_delta_times(text, min_delta=min_delta, max_cheat=max_cheat)
     if return_detailed_counts:
         return sorted(Counter(delta_times).most_common())
     else:
@@ -91,12 +89,11 @@ def part_1(text, return_detailed_counts=False, min_delta=100):
 
 
 def part_2(text, min_delta=100, max_cheat=20):
-    """
-    >>> part_2(EXAMPLE_TEXT, min_delta=50)
-    285
-    """
-    return len(find_delta_times(text, min_delta=min_delta, max_cheat=max_cheat))
+    return part_1(text, min_delta=min_delta, max_cheat=max_cheat)
 
+
+def part_4(text, min_delta=20, max_cheat=100):
+    return part_1(text, min_delta=min_delta, max_cheat=max_cheat)
 
 if __name__ == "__main__":
     import doctest
@@ -105,5 +102,6 @@ if __name__ == "__main__":
     data_dir = Path(__file__).parents[1] / "data"
     with open(data_dir / "example.txt") as f:
         EXAMPLE_TEXT = f.read()
-
+    with open(data_dir / "part3.txt") as f:
+        PART3_TEXT = f.read()
     doctest.testmod()
