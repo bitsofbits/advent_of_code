@@ -72,9 +72,25 @@ for start in robot:
         end = robot[end]
         robot_paths[(start, end)] = list(find_paths_between(start, end, robot))
 
-best_robot_path = {}
-for end in robot.values():
-    best_robot_path[end] = min(robot_paths['A', end], key=len) + 'A'
+robot_costs = {}
+robot_costs[0] = {k : 1 for k in robot_paths}
+
+
+
+def compute_robot_costs(cost_values):
+    costs = {}
+
+    for k in robot_paths:
+        best_cost = inf
+        for path in robot_paths[k]:
+            transistions = list(pairwise('A' + path + 'A'))
+            best_cost = min(best_cost, sum(cost_values[x] for x in transistions))
+        costs[k] = best_cost
+    return costs
+
+for i in range(25):
+    robot_costs[i + 1] = compute_robot_costs(robot_costs[i]) 
+
 
 
 def compute_top_level_pushes(pushes, path_maps, push=False, cache=None):
@@ -118,46 +134,32 @@ def compute_top_level_pushes(pushes, path_maps, push=False, cache=None):
 
 def compute_top_level_pushes_2(pushes, n_robots):
     """
-    >>> sum(compute_top_level_pushes_2('029A', n_robots=2).values())
+    >>> compute_top_level_pushes_2('029A', 0)
+    12
+
+    >>> compute_top_level_pushes_2('029A', 1)
+    28
+
+    >>> compute_top_level_pushes_2('029A', 2)
     68
 
-    >>> compute_top_level_pushes_2('029A', n_robots=2)
-
-    # >>> compute_top_level_pushes('029A', [door_paths, robot_paths])
-    # '<v<A>^>A<A>AvA^<AA>A<vAAA^>A'
-
-    # >>> compute_top_level_pushes('029A', [door_paths, robot_paths, robot_paths])
-    # '<vA<AA>^>AvAA^<A>A<v<A>^>AvA^A<vA^>A<Av<A>^>AAvA^A<v<A>A^>AAA<A>vA^A'
-
-    # >>> compute_top_level_pushes('v<<A>>^A<A>AvA<^AA>A<vAAA>^A', [robot_paths])
-    # '<vA<AA>^>AvAA^<A>A<v<A>^>AvA^A<vA^>A<v<A>^A>AAvA^A<v<A>A^>AAAvA^<A>A'
-
+    Check that it's fast enough
+    >>> _ = compute_top_level_pushes_2('029A', 25)
     """
     transistions = list(pairwise('A' + pushes))
-    counts = {k : 0 for k in '<>v^A'}
+    costs = robot_costs[n_robots]
+    cost = 0
     for x in transistions:
-        best_sub_counts = {'A' : inf}
-        for sub_path in door_paths[x]:
-            sub_counts = dict(Counter(sub_path))
-            for _ in range(n_robots):
-                next_counts = {k : 0 for k in '<>v^A'}
-                for k1, n1 in sub_counts.items():
-                    for k2 in best_robot_path[k1]:
-                        next_counts[k2] += n1
-                sub_counts = next_counts
-            if sum(sub_counts.values()) < sum(best_sub_counts.values()):
-                # print(">>>", sub_counts)
-                best_sub_counts = sub_counts
-            # else:
-            #     print("<<<", sub_counts, best_sub_counts)
-            #     print("<<<", sum(sub_counts.values()) < sum(best_sub_counts.values()))
-        for k1, n1 in best_sub_counts.items():
-            counts[k1] += n1
-    return counts
+        subpath_cost = inf
+        for subpath in door_paths[x]:
+            sub_trans = list(pairwise('A' + subpath + 'A'))
+            subpath_cost = min(subpath_cost, sum(costs[y] for y in sub_trans))
+        cost += subpath_cost
+    return cost
 
 
 
-def part_1(text):
+def part_1(text, n_robots=2):
     """
     >>> part_1(EXAMPLE_TEXT)
     126384
@@ -166,26 +168,12 @@ def part_1(text):
     score = 0
     for code in codes:
         value = int(code.lstrip('0')[:-1])
-        pushes = compute_top_level_pushes(code, [door_paths] + [robot_paths] * 2)
-        score += len(pushes) * value
+        count = compute_top_level_pushes_2(code, n_robots)
+        score += count * value
     return score
 
-def part_2(text, n_robots=25):
-    """
-    # >>> part_2(EXAMPLE_TEXT, n_robots=2)
-    126384
-    """
-    codes = parse(text)
-    score = 0
-    for code in codes:
-        value = int(code.lstrip('0')[:-1])
-        base_pushes = compute_top_level_pushes(code, [door_paths] + [robot_paths] * 2)
-
-        ...
-
-
-        score += len(base_pushes) * value
-    return score
+def part_2(text):
+    return part_1(text, n_robots=25)
 
 if __name__ == "__main__":
     import doctest
