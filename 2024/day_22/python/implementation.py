@@ -27,7 +27,7 @@ def generate_numbers(x, n):
     """
     for _ in range(n):
         x = (x ^ (x << 6)) % 16777216
-        x = x ^ (x >> 5)  # % 16777216
+        x = x ^ (x >> 5)  # % 16777216, don't need this because we are dividing and already smaller than 
         x = (x ^ (x << 11)) % 16777216
         yield x
 
