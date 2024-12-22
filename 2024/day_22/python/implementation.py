@@ -1,5 +1,4 @@
 from functools import cache
-from itertools import pairwise
 from collections import defaultdict
 
 
@@ -53,21 +52,27 @@ def part_2(text):
     """
     >>> part_2(EXAMPLE2_TEXT)
     23
+
+    1405
     """
     prices_per_pattern = defaultdict(int)
     for x in parse(text):
-        # TODO: could use deque to do this incrementally and not build
-        # these large arrays
-        numbers = list_numbers(x, 2000)
-        changes = [(b % 10 - a % 10) for (a, b) in pairwise(numbers)]
         seen = set()
-        for i in range(2000 - 4):
-            pattern = tuple(changes[i : i + 4])
-            if pattern in seen:
+        last_price = x % 10
+        key = 0
+        max_key = 20**4
+        for x in list_numbers(x, 2000):
+            price = x % 10
+            price_change = price - last_price
+            last_price = price
+            key = (key * 20) % max_key + (price_change + 10)
+            if key in seen:
                 continue
-            seen.add(pattern)
-            prices_per_pattern[pattern] += numbers[i + 4] % 10
-    return max(prices_per_pattern.values())
+            seen.add(key)
+            prices_per_pattern[key] += price
+
+    min_key_value = 20**3
+    return max(v for (k, v) in prices_per_pattern.items() if k >= min_key_value)
 
 
 if __name__ == "__main__":
