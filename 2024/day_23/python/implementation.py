@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 from itertools import combinations
 from collections import defaultdict
+
 
 def parse(text):
     """
@@ -8,59 +8,16 @@ def parse(text):
     [('kh', 'tc'), ('qp', 'kh'), ('de', 'cg'), ('ka', 'co')]
     """
     links = []
-    for row in text.strip().split('\n'):
-        a, b = row.split('-')
+    for row in text.strip().split("\n"):
+        a, b = row.split("-")
         links.append((a, b))
     return links
 
-@dataclass
-class Element:
-    node_id : str
-    parent : str
-    size: int
-
-
-def add_node_to(forest, node_id):
-    if node_id not in forest:
-        forest[node_id] = Element(node_id=node_id, parent=None, size=1)
-
-def is_root(element):
-    return element.parent == None
-
-def find_root(element):
-    if element.parent is None:
-        return element
-    else:
-        element.parent = find_root(element.parent)
-        return element if (element.parent is None) else element.parent
-
-def merge_sets_containing(element_a, element_b):
-    root_a = find_root(element_a)
-    root_b = find_root(element_b)
-
-    if root_a == root_b:
-        return
-
-    if root_a.size < root_b.size:
-        (root_a, root_b) = (root_b, root_a)
-
-    root_b.parent = root_a
-    root_a.size += root_b.size
-
-def has_t(combination):
-    for x in combination:
-        if x.startswith('t'):
-            return True
-    return False
-
-def linked(triple, links):
-    a, b, c = sorted(triple)
-    return ((a, b) in links) and ((a, c) in links) and ((b, c) in links)
 
 def find_linked(pairs):
     """
     >>> pairs = parse(EXAMPLE_TEXT)
-    >>> for x in find_linked(pairs): print(x)
+    >>> for x in sorted(find_linked(pairs)): print(x)
     ('co', 'de', 'ta')
     ('co', 'ka', 'ta')
     ('de', 'ka', 'ta')
@@ -68,8 +25,6 @@ def find_linked(pairs):
     ('tb', 'vc', 'wq')
     ('tc', 'td', 'wh')
     ('td', 'wh', 'yn')
-
-    2819 too high
     """
     ids = set()
     for pair in pairs:
@@ -77,10 +32,54 @@ def find_linked(pairs):
     ids = sorted(ids)
     links = set(tuple(sorted(x)) for x in pairs)
 
-    for triple in combinations(ids, 3):
-        if has_t(triple) and linked(triple, links):
-            yield triple
+    ids_0 = [x for x in ids if x[0] < "t"]
+    ids_t = [x for x in ids if x[0] == "t"]
+    ids_1 = [x for x in ids if x[0] > "t"]
 
+    # This is easy to brute force, but by breaking it up into cases, it runs much faster
+
+    # 1 t value
+
+    for i, a in enumerate(ids_0):
+        for b in ids_0[i + 1 :]:
+            for c in ids_t:
+                if ((a, b) in links) and ((a, c) in links) and ((b, c) in links):
+                    yield (a, b, c)
+
+    for a in ids_0:
+        for b in ids_t:
+            for c in ids_1:
+                if ((a, b) in links) and ((a, c) in links) and ((b, c) in links):
+                    yield (a, b, c)
+
+    for a in ids_t:
+        for i, b in enumerate(ids_1):
+            for c in ids_1[i + 1 :]:
+                if ((a, b) in links) and ((a, c) in links) and ((b, c) in links):
+                    yield (a, b, c)
+
+    # 2 t values
+
+    for a in ids_0:
+        for i, b in enumerate(ids_t):
+            for c in ids_t[i + 1 :]:
+                if ((a, b) in links) and ((a, c) in links) and ((b, c) in links):
+                    yield (a, b, c)
+
+    for i, a in enumerate(ids_t):
+        for b in ids_t[i + 1 :]:
+            for c in ids_1:
+                if ((a, b) in links) and ((a, c) in links) and ((b, c) in links):
+                    yield (a, b, c)
+
+    # 3 t values
+
+    for i, a in enumerate(ids_t):
+        for dj, b in enumerate(ids_t[i + 1 :]):
+            j = i + 1 + dj
+            for c in ids_t[j + 1 :]:
+                if ((a, b) in links) and ((a, c) in links) and ((b, c) in links):
+                    yield (a, b, c)
 
 def part_1(text):
     """
@@ -90,13 +89,12 @@ def part_1(text):
     pairs = parse(text)
     return sum(1 for _ in find_linked(pairs))
 
-def are_fully_connected(computers, links):
-    """
 
-    """
+def are_fully_connected(computers, links):
+    """ """
     computers = sorted(computers)
     for i, a in enumerate(computers):
-        for b in computers[i + 1:]:
+        for b in computers[i + 1 :]:
             if (a, b) not in links:
                 return False
     return True
@@ -105,12 +103,7 @@ def are_fully_connected(computers, links):
 def part_2(text):
     """
     >>> part_2(EXAMPLE_TEXT)
-    'codekata'
-
-    not right:
-    avaxdgdidwfagekhkiotqwvzyw 
-
-
+    'co,de,ka,ta'
     """
     pairs = parse(text)
     ids = set()
@@ -122,9 +115,8 @@ def part_2(text):
     for a, b in pairs:
         neighbors[a].add(b)
         neighbors[b].add(a)
-    
-    links = set(tuple(sorted(x)) for x in pairs)
 
+    links = set(tuple(sorted(x)) for x in pairs)
 
     target = max(len(v) for v in neighbors.values()) + 1
 
@@ -138,9 +130,7 @@ def part_2(text):
         if fully_connected:
             break
     [result] = fully_connected
-    return ','.join(sorted(result))
-
-
+    return ",".join(sorted(result))
 
 
 if __name__ == "__main__":
