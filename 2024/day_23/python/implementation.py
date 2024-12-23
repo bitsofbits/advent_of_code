@@ -48,13 +48,13 @@ def merge_sets_containing(element_a, element_b):
 
 def has_t(combination):
     for x in combination:
-        if 't' in x:
+        if x.startswith('t'):
             return True
     return False
 
 def linked(triple, links):
-    a, b, c = triple
-    return (a, b) in links and (a, c) in links and (b, c) in links
+    a, b, c = sorted(triple)
+    return ((a, b) in links) and ((a, c) in links) and ((b, c) in links)
 
 def find_linked(pairs):
     """
@@ -85,8 +85,6 @@ def part_1(text):
     """
     >>> part_1(EXAMPLE_TEXT)
     7
-
-    2819 too high
     """
     pairs = parse(text)
     return sum(1 for _ in find_linked(pairs))
