@@ -1,5 +1,4 @@
 from functools import cache
-from collections import defaultdict
 
 
 def parse(text):
@@ -55,7 +54,7 @@ def part_2(text):
 
     1405
     """
-    prices_per_pattern = defaultdict(int)
+    prices_per_pattern = [0] * 19**4
     key_size = 19
     min_key_value = key_size**3
     for x in parse(text):
@@ -67,14 +66,11 @@ def part_2(text):
             price_change = price - last_price
             last_price = price
             key = (key % min_key_value) * key_size + (price_change + 10)
-            if key in seen:
-                continue
-            seen.add(key)
-            prices_per_pattern[key] += price
-    return max(v for (k, v) in prices_per_pattern.items() if k >= min_key_value)
+            if key not in seen:
+                seen.add(key)
+                prices_per_pattern[key] += price
+    return max(prices_per_pattern[min_key_value:])
 
-
-print(2147483647, 20**4)
 
 if __name__ == "__main__":
     import doctest
