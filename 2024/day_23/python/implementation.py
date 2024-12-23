@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from itertools import combinations
+from collections import defaultdict
 
 def parse(text):
     """
@@ -89,10 +90,57 @@ def part_1(text):
     pairs = parse(text)
     return sum(1 for _ in find_linked(pairs))
 
+def are_fully_connected(computers, links):
+    """
+
+    """
+    computers = sorted(computers)
+    for i, a in enumerate(computers):
+        for b in computers[i + 1:]:
+            if (a, b) not in links:
+                return False
+    return True
+
+
 def part_2(text):
     """
     >>> part_2(EXAMPLE_TEXT)
+    'codekata'
+
+    not right:
+    avaxdgdidwfagekhkiotqwvzyw 
+
+
     """
+    pairs = parse(text)
+    ids = set()
+    for pair in pairs:
+        ids |= set(pair)
+    ids = sorted(ids)
+
+    neighbors = defaultdict(set)
+    for a, b in pairs:
+        neighbors[a].add(b)
+        neighbors[b].add(a)
+    
+    links = set(tuple(sorted(x)) for x in pairs)
+
+
+    target = max(len(v) for v in neighbors.values()) + 1
+
+    fully_connected = set()
+    for target_size in reversed(range(target)):
+        for a in ids:
+            source_set = frozenset(neighbors[a] | {a})
+            for target_set in combinations(source_set, target_size):
+                if are_fully_connected(target_set, links):
+                    fully_connected.add(frozenset(target_set))
+        if fully_connected:
+            break
+    [result] = fully_connected
+    return ','.join(sorted(result))
+
+
 
 
 if __name__ == "__main__":
