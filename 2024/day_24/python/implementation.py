@@ -1,6 +1,7 @@
-from itertools import combinations,  product
+from itertools import combinations, product
 from typing import Literal, Any
 from dataclasses import dataclass
+
 
 def parse(text):
     """
@@ -38,7 +39,6 @@ class Value:
             return x.evaluate(values)
         else:
             return x
-        
 
 
 @dataclass
@@ -80,8 +80,6 @@ class Operation:
                 raise ValueError(self.op)
 
 
-
-
 def build_op_values(gates):
     values = {}
     for k1, _, k2 in gates.values():
@@ -109,27 +107,6 @@ def build_operations(gates):
     return processed_gates
 
 
-# def build_values_map(values):
-#     map_ = {}
-#     for key, v in values.items():
-#         i = int(key[1:])
-#         if key[0] == 'x':
-#             map
-#         elif key[0] == 'y':
-#             y_values[i] = v
-#         else:
-#             raise ValueError(key)
-#     return tuple(x_values), tuple(y_values)
-
-
-def compute_output(operations, values):
-    output = 0
-    for k in reversed(sorted(operations)):
-        if k.startswith("z"):
-            output = (output << 1) + operations[k].evaluate(values)
-    return output
-
-
 def part_1(text):
     """
     >>> part_1(EXAMPLE2_TEXT)
@@ -137,7 +114,11 @@ def part_1(text):
     """
     values, gates = parse(text)
     operations = build_operations(gates)
-    return compute_output(operations, values)
+    output = 0
+    for k in reversed(sorted(operations)):
+        if k.startswith("z"):
+            output = (output << 1) + operations[k].evaluate(values)
+    return output
 
 
 def build_half_adder(i, x=None, y=None, prefix=""):
@@ -160,7 +141,6 @@ def build_adder(i, carry):
 
 
 def equivalent_over(keys, op1, op2):
-    # TODO: also check size?
     series = [[(k, 0), (k, 1)] for k in keys]
     for items in product(*series):
         values = dict(items)
@@ -170,7 +150,8 @@ def equivalent_over(keys, op1, op2):
         except KeyError:
             return False
     return True
-    
+
+
 def extract_ops_down_to(terminal_keys, op):
     pending = [op]
     ops = []
@@ -184,10 +165,12 @@ def extract_ops_down_to(terminal_keys, op):
             pending.append(op.b)
     return ops
 
+
 def extract_keys_down_to(terminal_keys, op):
     return {x.name for x in extract_ops_down_to(terminal_keys, op)}
 
-def find_swap_target(input_names, add, operations):     
+
+def find_swap_target(input_names, add, operations):
     examples = extract_ops_down_to(input_names, add)
     for example, candidate in product(examples, operations.values()):
         if equivalent_over(input_names, example, candidate):
@@ -227,33 +210,26 @@ def swap_ops(op_x, op_y, operations):
         assert v.name == k
 
 
-
-
 def part_2(text, swaps=4):
     """
     >>> part_2(DATA_TEXT)
+    'gbs,hwq,thm,wrm,wss,z08,z22,z29'
     """
     raw_values, gates = parse(text)
     operations = build_operations(gates)
-    # x_len, y_len = (len(x) for x in build_values(raw_values))
-    # assert x_len == y_len
 
-    add_0, carry_0 = build_half_adder(0)
-
-    for k, v in operations.items():
-        if equivalent_over(['x00', 'y00'], carry_0, v):
-                break
-    else:
-        raise ValueError('no carry_0 match')
-    last_carry = Value(k)
-
-
+    last_carry = None
     swapped = []
-    for i in range(1, 45):
-        add, carry = build_adder(i, last_carry)
-        key = f'z{i:02d}'
+    for i in range(45):
+        if i == 0:
+            add, carry = build_half_adder(i)
+            input_names = [f"x{i:02d}", f"y{i:02d}"]
+        else:
+            add, carry = build_adder(i, last_carry)
+            input_names = [f"x{i:02d}", f"y{i:02d}", last_carry.name]
+
+        key = f"z{i:02d}"
         op = operations[key]
-        input_names = [f'x{i:02d}', f'y{i:02d}', last_carry.name]
 
         if not equivalent_over(input_names, add, op):
             swap_target = find_swap_target(input_names, add, operations)
@@ -265,21 +241,18 @@ def part_2(text, swaps=4):
                     break
                 swap_ops(swap_source, swap_target, operations)
             else:
-
-                raise ValueError('no swap found for Add', i)
-    
+                raise ValueError("no swap found for Add", i)
 
         for k, v in operations.items():
             if equivalent_over(input_names, carry, v):
                 break
         else:
-            print('no carry', i, 'match')
+            print("no carry", i, "match")
 
         last_carry = Value(k)
 
-    return ','.join(sorted(swapped))
+    return ",".join(sorted(swapped))
 
-   
 
 if __name__ == "__main__":
     import doctest
