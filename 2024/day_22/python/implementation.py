@@ -27,11 +27,9 @@ def list_numbers(x, n):
     """
     numbers = []
     for _ in range(n):
-        x = (x ^ (x << 6)) % 16777216
-        x = (
-            x ^ (x >> 5)
-        )  # % 16777216, don't need this because we are dividing and already smaller than
-        x = (x ^ (x << 11)) % 16777216
+        x = (x ^ (x << 6)) & 0xFFFFFF
+        x = x ^ (x >> 5)  # & 0xFFFFFF
+        x = (x ^ (x << 11)) & 0xFFFFFF
         numbers.append(x)
     return numbers
 
